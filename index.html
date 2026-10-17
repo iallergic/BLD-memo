@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0c1020">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BLD Memo">
+  <meta name="description" content="A visual letter-pair dictionary and recall trainer for 3x3 blindfolded solving.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="icon" href="./icon-192.png" type="image/png">
+  <title>BLD Memo — Train your 3BLD memory</title>
+  <style>
+    :root { color-scheme:dark; --bg:#0b0f1d; --surface:#12182a; --surface2:#1a2136; --raised:#222b43; --line:#2b3550; --text:#f4f6ff; --soft:#b5bfd8; --muted:#8592b0; --accent:#8e83ff; --accent2:#b6adff; --green:#76e7bc; --red:#ff9da9; --amber:#ffd28a; --shadow:0 16px 48px rgba(0,0,0,.22); }
+    * { box-sizing: border-box; }
+    body { margin:0; background:radial-gradient(circle at 83% -10%, rgba(109,100,255,.17), transparent 36rem),var(--bg); color:var(--text); font-family: ui-sans-serif, -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+    button,input,textarea,select { font:inherit; }
+    button { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible { outline:2px solid var(--accent2); outline-offset:3px; }
+    button:disabled { opacity:.4; cursor:not-allowed; }
+    input,textarea,select { background:#101628; border:1px solid var(--line); border-radius:12px; color:var(--text); padding:13px 14px; width:100%; font-size:16px; }
+    input::placeholder,textarea::placeholder { color:#74809e; }
+    a { color:var(--accent2); }
+    .wrap { max-width:1120px; margin:0 auto; padding:0 24px 100px; }
+    .top { min-height:96px; display:flex; justify-content:space-between; align-items:center; gap:20px; }
+    .brand { display:flex; align-items:center; gap:12px; }
+    .logo { width:47px; height:47px; display:grid; place-items:center; border-radius:15px; color:white; font-weight:900; letter-spacing:-2px; font-size:22px; background:linear-gradient(135deg,#9f89ff,#5968f5); box-shadow:0 7px 22px rgba(128,116,255,.25); }
+    .brand h1 { margin:0; font-size:20px; font-weight:800; letter-spacing:-.65px; }
+    .brand small { color:var(--muted); font-weight:600; font-size:11px; letter-spacing:1.8px; text-transform:uppercase; }
+    .top-note { color:var(--muted); font-size:12px; display:flex; align-items:center; gap:8px; }
+    .dot { display:inline-block; width:7px; height:7px; background:var(--green); border-radius:50%; box-shadow:0 0 12px var(--green); }
+    .intro { padding:16px 0 25px; }
+    .eyebrow { color:var(--accent2); font-size:11px; letter-spacing:2px; text-transform:uppercase; font-weight:800; margin:0 0 9px; }
+    .intro h2 { font-size:clamp(27px,4.2vw,42px); line-height:1.13; margin:0 0 10px; letter-spacing:-1.5px; }
+    .intro p { color:var(--soft); font-size:14px; max-width:680px; line-height:1.65; margin:0; }
+    .highlights { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0 0 22px; }
+    .stat { padding:18px 20px; background:rgba(22,29,49,.85); border:1px solid var(--line); border-radius:17px; }
+    .stat span { display:block; color:var(--muted); font-size:12px; font-weight:600; }
+    .stat strong { display:block; margin-top:6px; font-size:28px; letter-spacing:-1.2px; font-variant-numeric:tabular-nums; }
+    .stat em { font-size:12px; font-style:normal; color:var(--muted); font-weight:500; }
+    .tabs { display:flex; gap:6px; padding:6px; width:max-content; max-width:100%; overflow:auto; border-radius:15px; background:#151c2f; border:1px solid var(--line); margin:0 0 20px; scrollbar-width:none; }
+    .tabs::-webkit-scrollbar,.letters::-webkit-scrollbar { display:none; }
+    .tab { padding:12px 19px; border:0; border-radius:10px; background:transparent; color:var(--soft); font-weight:700; font-size:13px; white-space:nowrap; }
+    .tab.active { background:#343456; color:white; box-shadow:0 2px 13px rgba(0,0,0,.15); }
+    .panel { background:rgba(18,24,42,.94); border:1px solid var(--line); border-radius:22px; padding:25px; min-height:360px; box-shadow:var(--shadow); }
+    .section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin:0 0 22px; }
+    .section-head h3 { font-size:23px; margin:0 0 5px; letter-spacing:-.6px; }
+    .section-head p { font-size:13px; margin:0; color:var(--muted); line-height:1.5; }
+    .pill { color:var(--accent2); background:rgba(142,131,255,.13); border:1px solid rgba(142,131,255,.2); border-radius:999px; padding:7px 11px; white-space:nowrap; font-size:11px; font-weight:800; }
+    .toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+    .toolbar input { max-width:275px; flex:1 1 190px; }
+    .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:1px solid var(--line); background:var(--surface2); color:var(--text); padding:12px 15px; border-radius:12px; font-size:13px; line-height:1.2; font-weight:750; transition:background .12s,border-color .12s; }
+    .btn:hover { background:var(--raised); border-color:#566182; }
+    .btn.primary { background:var(--accent); border-color:var(--accent); color:#101224; }
+    .btn.primary:hover { background:var(--accent2); }
+    .btn.good { background:rgba(118,231,188,.12); color:var(--green); border-color:rgba(118,231,188,.28); }
+    .btn.warn { background:rgba(255,210,138,.12); color:var(--amber); border-color:rgba(255,210,138,.25); }
+    .btn.again { background:rgba(255,157,169,.11); color:var(--red); border-color:rgba(255,157,169,.25); }
+    .btn.sm { padding:9px 12px; font-size:12px; }
+    .seg { display:flex; padding:3px; gap:2px; background:#0e1424; border:1px solid var(--line); border-radius:12px; }
+    .seg button { border:0; background:transparent; color:var(--muted); border-radius:8px; padding:9px 13px; font-size:12px; font-weight:750; }
+    .seg button.active { background:#343956; color:white; }
+    .letters { display:flex; align-items:center; gap:6px; padding:6px 0 14px; margin-bottom:15px; overflow:auto; scrollbar-width:none; }
+    .letter { flex:0 0 auto; width:36px; height:39px; background:#192138; border:1px solid var(--line); border-radius:10px; color:var(--muted); font-size:13px; font-weight:850; }
+    .letter.active { color:#11132a; border-color:var(--accent); background:var(--accent); }
+    .info-line { margin:-5px 0 14px; color:var(--muted); font-size:12px; }
+    .cardgrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+    .paircard { min-height:110px; background:#171f32; border:1px solid var(--line); padding:13px 11px; border-radius:14px; text-align:left; color:var(--text); display:flex; flex-direction:column; align-items:flex-start; gap:5px; position:relative; overflow:hidden; }
+    .paircard:hover { background:#222b42; border-color:#655d95; }
+    .paircard.edited { border-color:#646098; }
+    .paircard .pcode { font-size:21px; font-weight:850; letter-spacing:-1px; }
+    .paircard .pname { font-size:11px; line-height:1.35; color:var(--soft); overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+    .paircard .tag { position:absolute; top:12px; right:10px; font-size:10px; color:var(--green); }
+    .paircard .tag.purple { color:var(--accent2); }
+    .empty { border:1px dashed var(--line); border-radius:13px; padding:40px 15px; text-align:center; color:var(--muted); font-size:13px; }
+    .table-scroll { max-height:560px; overflow:auto; border:1px solid var(--line); border-radius:13px; }
+    .matrix-table { border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:1610px; }
+    .matrix-table th { position:sticky; top:0; z-index:2; background:#252c45; color:var(--soft); font-size:11px; height:43px; text-align:center; }
+    .matrix-table th:first-child { left:0; z-index:4; width:52px; }
+    .matrix-table td:first-child { position:sticky; left:0; z-index:2; background:#252c45; font-weight:850; color:var(--soft); text-align:center; width:52px; }
+    .matrix-table td { border-top:1px solid #30374b; border-right:1px solid #30374b; height:61px; padding:0; background:#131a2c; }
+    .matrix-table td button { width:100%; height:61px; background:transparent; color:var(--text); border:0; padding:4px; display:flex; align-items:center; flex-direction:column; justify-content:center; gap:4px; }
+    .matrix-table td button:hover { background:#293251; }
+    .matrix-table td button strong { font-size:13px; }
+    .matrix-table td button small { max-width:62px; font-size:9px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .matrix-table td button.changed { background:#252343; }
+    .practice-area { max-width:670px; margin:0 auto; }
+    .flashcard { min-height:300px; border-radius:22px; border:1px solid #3a3b65; background:radial-gradient(circle at top right,rgba(153,139,255,.18),transparent 70%),linear-gradient(140deg,#1e2544,#171d34); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:30px 24px; text-align:center; margin:9px 0 17px; }
+    .flashcard .micro { font-size:11px; font-weight:800; letter-spacing:2px; text-transform:uppercase; color:var(--muted); }
+    .flashcard .bigpair { font-size:clamp(72px,17vw,115px); line-height:1.15; letter-spacing:-8px; font-weight:850; margin:12px 0; }
+    .flashcard .meaning { color:var(--accent2); font-weight:800; font-size:clamp(20px,4vw,27px); line-height:1.3; max-width:100%; overflow-wrap:anywhere; margin:5px 0; }
+    .flashcard .note { color:var(--soft); font-size:13px; max-width:420px; line-height:1.5; margin-top:10px; }
+    .flashcard .concealed { color:var(--muted); font-size:13px; }
+    .controls { display:flex; justify-content:center; flex-wrap:wrap; gap:9px; }
+    .controls .btn { min-width:108px; }
+    .subhint { color:var(--muted); font-size:12px; margin:17px 0 0; text-align:center; }
+    .options-row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 14px; }
+    .options-row label { font-size:12px; font-weight:700; color:var(--soft); }
+    .mini-select { width:auto; min-width:135px; padding:10px 13px; font-size:13px; }
+    .sequence { display:flex; flex-wrap:wrap; justify-content:center; gap:11px; margin:24px auto; max-width:740px; }
+    .sequence .seqpair { border-radius:14px; border:1px solid var(--line); background:#192238; padding:15px 10px; text-align:center; min-width:106px; flex:1 1 108px; max-width:175px; }
+    .sequence .seqpair strong { display:block; font-size:29px; margin-bottom:8px; letter-spacing:-1px; }
+    .sequence .seqpair span { display:block; font-size:11px; min-height:30px; line-height:1.35; color:var(--soft); overflow-wrap:anywhere; }
+    .sequence .seqpair input { margin:2px 0 9px; text-align:center; text-transform:uppercase; font-weight:800; font-size:22px; padding:12px 8px; letter-spacing:2px; }
+    .sequence .seqpair.correct { border-color:var(--green); }
+    .sequence .seqpair.wrong { border-color:var(--red); }
+    .sequence .seqpair .answer { color:var(--accent2); font-size:12px; margin-bottom:6px; }
+    .callout { background:#171e35; border:1px solid var(--line); padding:15px 17px; border-radius:13px; color:var(--soft); font-size:13px; line-height:1.65; margin:14px 0; }
+    .callout strong { color:var(--text); }
+    .progress-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:15px; }
+    .progressbox { border:1px solid var(--line); border-radius:15px; background:#151c2e; padding:21px; }
+    .progressbox h4 { font-size:15px; margin:0 0 13px; }
+    .progressbox p { color:var(--muted); font-size:12px; line-height:1.65; margin:8px 0 0; }
+    .progressbar { height:9px; border-radius:999px; background:#303a55; overflow:hidden; margin:14px 0; }
+    .progressbar span { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#686afa,#a393ff); }
+    .progress-meter { display:flex; justify-content:space-between; font-size:12px; color:var(--soft); }
+    .trouble-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+    .trouble-list button { border-radius:8px; border:1px solid var(--line); background:#232943; color:var(--soft); padding:8px 12px; font-weight:800; font-size:12px; }
+    .footer { text-align:center; color:var(--muted); margin-top:24px; font-size:12px; line-height:1.6; }
+    dialog { width:min(510px,calc(100vw - 22px)); max-height:min(90vh,840px); overflow:auto; padding:0; border-radius:22px; border:1px solid #4b5273; background:#181f33; color:var(--text); box-shadow:0 35px 120px #000b; }
+    dialog::backdrop { background:rgba(2,4,13,.82); backdrop-filter:blur(5px); }
+    .dialog-inner { padding:27px; }
+    .dialog-top { display:flex; align-items:flex-start; justify-content:space-between; gap:15px; }
+    .dialog-top h3 { font-size:25px; letter-spacing:-.4px; margin:0 0 5px; }
+    .dialog-top p { font-size:12px; color:var(--muted); margin:0 0 20px; }
+    .close { width:35px; height:35px; border-radius:10px; font-size:20px; background:#293047; color:var(--soft); border:1px solid var(--line); }
+    .fieldlabel { display:block; font-size:12px; color:var(--soft); font-weight:800; margin:14px 0 7px; }
+    .form-note { font-size:11px; color:var(--muted); margin:7px 0 0; line-height:1.5; }
+    .dialog-actions { display:flex; justify-content:flex-end; flex-wrap:wrap; gap:9px; margin:25px 0 0; }
+    #toast { position:fixed; left:50%; transform:translateX(-50%) translateY(100px); bottom:calc(24px + env(safe-area-inset-bottom)); max-width:calc(100vw - 30px); border:1px solid #536383; background:#28334f; color:white; padding:12px 18px; border-radius:14px; font-size:13px; font-weight:700; box-shadow:0 12px 35px #0007; opacity:0; z-index:50; transition:opacity .17s,transform .17s; pointer-events:none; }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+    .hide { display:none!important; }
+    @media(max-width:760px){ .wrap { padding:0 15px 105px; } .top { min-height:80px; } .top-note { display:none; } .intro { padding:14px 3px 20px; } .intro h2 { font-size:29px; } .highlights { gap:7px; } .stat { padding:13px; border-radius:13px; } .stat strong { font-size:23px; } .stat span { font-size:10px; } .stat em { display:none; } .panel { padding:16px; border-radius:18px; } .cardgrid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; } .paircard { min-height:104px; padding:11px 10px; } .tab { padding:11px 13px; font-size:12px; } .tabs { width:100%; } .section-head h3 { font-size:20px; } .section-head { margin-bottom:18px; } .pill { font-size:10px; } .progress-grid { grid-template-columns:1fr; } .options-row { gap:9px; } .flashcard { min-height:275px; } .sequence .seqpair { min-width:84px; flex-basis:82px; padding:11px 7px; } .sequence .seqpair strong { font-size:23px; } .sequence .seqpair span { font-size:10px; } .dialog-inner { padding:20px; } }
+    @media(max-width:360px){ .cardgrid { grid-template-columns:repeat(2,minmax(0,1fr)); } .stat { padding:10px; } .stat strong { font-size:20px; } .letter { width:33px; } }
+    @media(prefers-reduced-motion:reduce){ * { transition:none!important; scroll-behavior:auto!important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div class="brand"><div class="logo" aria-hidden="true">BL</div><div><h1>BLD Memo</h1><small>Memory training studio</small></div></div>
+      <div class="top-note"><span class="dot"></span> Private, on-device progress</div>
+    </header>
+    <section class="intro">
+      <p class="eyebrow">3×3 blindfolded · Visual memo</p>
+      <h2>Make every letter pair <span style="color:var(--accent2)">memorable.</span></h2>
+      <p>576 starter associations. Replace any with an image that sticks, then practice recalling it and building longer memo sequences.</p>
+    </section>
+    <section class="highlights" aria-label="Your practice stats">
+      <div class="stat"><span>Associations edited</span><strong id="editedCount">0 <em>/ 576</em></strong></div>
+      <div class="stat"><span>Pairs practiced</span><strong id="practicedCount">0 <em>/ 576</em></strong></div>
+      <div class="stat"><span>Strong recall</span><strong id="masteredCount">0 <em>pairs</em></strong></div>
+    </section>
+    <nav class="tabs" aria-label="App sections">
+      <button class="tab active" data-tab="matrix" aria-current="page" aria-label="Dictionary">▦ &nbsp;Matrix</button>
+      <button class="tab" data-tab="cards" aria-label="Flashcards">✦ &nbsp;Cards</button>
+      <button class="tab" data-tab="sequence" aria-label="Sequences">▤ &nbsp;Memo</button>
+      <button class="tab" data-tab="progress" aria-label="Progress">◷ &nbsp;Stats</button>
+    </nav>
+    <main id="app" class="panel"></main>
+    <footer class="footer">Speffz-style A–X letter pairs · Saved locally on this device · No account needed</footer>
+  </div>
+  <dialog id="editDialog" aria-labelledby="dialogTitle">
+    <form method="dialog" id="editForm" class="dialog-inner">
+      <div class="dialog-top"><div><h3 id="dialogTitle">Edit pair</h3><p>Make this image vivid and easy to recognize.</p></div><button type="button" class="close" id="closeDialog" aria-label="Close">×</button></div>
+      <div class="callout" id="defaultSuggestion" style="margin-top:0"></div>
+      <label for="imageInput" class="fieldlabel">Your image / association</label>
+      <input id="imageInput" name="image" maxlength="160" required autocomplete="off" placeholder="e.g., Cake">
+      <p class="form-note">A single object, person, or absurd scene works best.</p>
+      <label for="noteInput" class="fieldlabel">Optional visual detail</label>
+      <textarea id="noteInput" name="note" rows="2" maxlength="380" placeholder="What exactly do you picture?"></textarea>
+      <div class="dialog-actions"><button type="button" class="btn" id="restoreBtn">Restore suggestion</button><button type="submit" class="btn primary">Save association</button></div>
+    </form>
+  </dialog>
+  <input id="importInput" type="file" accept=".json,application/json" class="hide" aria-label="Import data backup">
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script>
+  'use strict';
+  const ABC='ABCDEFGHIJKLMNOPQRSTUVWX';
+  const PAIRS=Array.from(ABC, a=>Array.from(ABC,b=>a+b)).flat();
+  const ACTORS=['Astronaut','Bear','Chef','Dragon','Elephant','Fox','Gorilla','Hedgehog','Inventor','Jester','Knight','Lion','Magician','Ninja','Octopus','Pirate','Queen','Robot','Sorcerer','Tiger','Unicorn','Vampire','Wizard','X-ray robot'];
+  const OBJECTS=['apple','balloon','crown','donut','easel','firework','guitar','hammer','iceberg','jellyfish','key','lantern','moon','nest','orange','pizza','quilt','rocket','sword','telescope','umbrella','violin','wand','xylophone'];
+  const VERBS=['juggling','balancing','carrying','painting','chasing','throwing','hiding','riding','lifting','launching','catching','wearing'];
+  const SPECIAL={
+    AA:'Aardvark', AB:'Abacus', AC:'Acorn', AD:'Adventurer', AE:'Aerosol can', AF:'Afro wig', AG:'Agent', AH:'Anchor', AI:'Airplane', AJ:'Apple juice', AK:'Axe', AL:'Alien', AM:'Ambulance', AN:'Ant', AO:'Avocado', AP:'Apple', AQ:'Aquarium', AR:'Arrow', AS:'Astronaut', AT:'Atlas', AU:'Autumn leaves', AV:'Aviator', AW:'Awning', AX:'Axe',
+    BA:'Banana', BB:'Baby', BC:'Bicycle', BD:'Bed', BE:'Bee', BF:'Bonfire', BG:'Bag', BH:'Beehive', BI:'Bison', BJ:'Banjo', BK:'Book', BL:'Balloon', BM:'Batman', BN:'Bunny', BO:'Boat', BP:'Backpack', BQ:'Bouquet', BR:'Bear', BS:'Bus', BT:'Bat', BU:'Bucket', BV:'Beaver', BW:'Bow', BX:'Box',
+    CA:'Cat', CB:'Cab', CC:'Cactus', CD:'CD disc', CE:'Cereal', CF:'Coffee', CG:'Cage', CH:'Chair', CI:'Cinnamon', CJ:'Cajun chef', CK:'Cake', CL:'Cloud', CM:'Camera', CN:'Cannon', CO:'Cow', CP:'Cape', CQ:'Croquet mallet', CR:'Crab', CS:'Castle', CT:'Coat', CU:'Cucumber', CV:'Cave', CW:'Cowboy', CX:'Cortex',
+    DA:'Daisy', DB:'Dumbbell', DC:'Dice', DD:'Dodo', DE:'Deer', DF:'Daffodil', DG:'Dog', DH:'Dough', DI:'Diamond', DJ:'DJ booth', DK:'Duck', DL:'Doll', DM:'Domino', DN:'Dinosaur', DO:'Donut', DP:'Diaper', DQ:'Dairy queen crown', DR:'Dragon', DS:'Desk', DT:'Dart', DU:'Dune', DV:'Dove', DW:'Dwarf', DX:'Deluxe trophy',
+    EA:'Eagle', EB:'Eyeball', EC:'Eclipse', ED:'Editor', EE:'Eel', EF:'Elephant foot', EG:'Egg', EH:'Echo', EI:'Eiffel Tower', EJ:'Eject button', EK:'Elk', EL:'Elephant', EM:'Emerald', EN:'Envelope', EO:'Eon clock', EP:'Envelope', EQ:'Equation', ER:'Eraser', ES:'Escalator', ET:'E.T. alien', EU:'Eucalyptus', EV:'Elevator', EW:'Ewok', EX:'Excavator',
+    FA:'Fan', FB:'Football', FC:'Falcon', FD:'Fried dough', FE:'Fence', FF:'Firefighter', FG:'Fog', FH:'Fishhook', FI:'Fire', FJ:'Fajita', FK:'Fork', FL:'Flower', FM:'Farm', FN:'Funnel', FO:'Fox', FP:'Frying pan', FQ:'Fluffy quilt', FR:'Frog', FS:'Fish', FT:'Foot', FU:'Futon', FV:'Five fingers', FW:'Fireworks', FX:'Fox',
+    GA:'Galaxy', GB:'Globe', GC:'Garlic', GD:'Gold', GE:'Geyser', GF:'Giraffe', GG:'Goggles', GH:'Ghost', GI:'Giant', GJ:'Giant jellybean', GK:'Gecko', GL:'Glue', GM:'Gum', GN:'Gnome', GO:'Goat', GP:'Grape', GQ:'Giant queen', GR:'Gorilla', GS:'Goose', GT:'Guitar', GU:'Gumboot', GV:'Grave', GW:'Gown', GX:'Galaxy',
+    HA:'Hat', HB:'Hamburger', HC:'Hot chocolate', HD:'Hoodie', HE:'Heart', HF:'Half moon', HG:'Hedgehog', HH:'Hula hoop', HI:'Hibiscus', HJ:'Hijacker', HK:'Hockey stick', HL:'Halo', HM:'Hammer', HN:'Hen', HO:'Horse', HP:'Hippo', HQ:'Headquarters', HR:'Harp', HS:'House', HT:'Hotdog', HU:'Hula hoop', HV:'Hoverboard', HW:'Hawk', HX:'Hexagon',
+    IA:'Iguana', IB:'Iceberg', IC:'Ice cream', ID:'ID card', IE:'Iced espresso', IF:'Inflatable flamingo', IG:'Igloo', IH:'Ice hockey puck', II:'Ink bottle', IJ:'Ink jet printer', IK:'Ice skate', IL:'Island', IM:'Imp', IN:'Insect', IO:'Iodine', IP:'iPad', IQ:'IQ test', IR:'Iron', IS:'Ice skate', IT:'Italian flag', IU:'Inflatable unicorn', IV:'Ivy', IW:'Ice water', IX:'Ixora flower',
+    JA:'Jaguar', JB:'Jellybean', JC:'Jack-in-the-box', JD:'Jedi', JE:'Jet', JF:'Jellyfish', JG:'Jug', JH:'Jockey helmet', JI:'Jigsaw', JJ:'Jelly jar', JK:'Joker', JL:'Jail', JM:'Jam', JN:'Jeans', JO:'Joystick', JP:'Jeep', JQ:'Jewel queen', JR:'Jar', JS:'Jester', JT:'Jet', JU:'Jukebox', JV:'Javelin', JW:'Jaw', JX:'Jinx cat',
+    KA:'Kangaroo', KB:'Kebab', KC:'Ketchup', KD:'Kid', KE:'Kettle', KF:'Kingfisher', KG:'Keg', KH:'Khaki pants', KI:'Kite', KJ:'Karate jacket', KK:'Koala', KL:'Kale', KM:'Kimono', KN:'Knot', KO:'Koala', KP:'Ketchup', KQ:'King and queen', KR:'Kraken', KS:'Kiss', KT:'Kitten', KU:'Kumquat', KV:'Kevlar vest', KW:'Kiwi', KX:'Kleenex box',
+    LA:'Ladder', LB:'Lightbulb', LC:'Lace', LD:'Lid', LE:'Lemon', LF:'Leaf', LG:'Log', LH:'Lighthouse', LI:'Lion', LJ:'Lumberjack', LK:'Lock', LL:'Lollipop', LM:'Lamb', LN:'Lawn mower', LO:'Lobster', LP:'Laptop', LQ:'Lava queen', LR:'Laser', LS:'Lasso', LT:'Lantern', LU:'Luggage', LV:'Lava', LW:'Lawn', LX:'Lynx',
+    MA:'Magnet', MB:'Mailbox', MC:'Microphone', MD:'Medal', ME:'Melon', MF:'Muffin', MG:'Mug', MH:'Mushroom', MI:'Mirror', MJ:'Michael Jackson glove', MK:'Mask', ML:'Mole', MM:'Mummy', MN:'Moon', MO:'Mop', MP:'Map', MQ:'Mosquito queen', MR:'Mirror', MS:'Mouse', MT:'Mountain', MU:'Mule', MV:'Movie camera', MW:'Microwave', MX:'Mixer',
+    NA:'Nail', NB:'Notebook', NC:'Nachos', ND:'Noodle', NE:'Needle', NF:'Nerf blaster', NG:'Nugget', NH:'Nighthawk', NI:'Ninja', NJ:'Ninja jumping', NK:'Necklace', NL:'Nail', NM:'Name tag', NN:'Nanny', NO:'Nose', NP:'Napkin', NQ:'Nuclear queen', NR:'Nurse', NS:'Nest', NT:'Net', NU:'Nut', NV:'Navy ship', NW:'Newspaper', NX:'Nexus portal',
+    OA:'Oasis', OB:'Oboe', OC:'Octopus', OD:'Odometer', OE:'Orange elephant', OF:'Office', OG:'Ogre', OH:'Outhouse', OI:'Oil', OJ:'Orange juice', OK:'Oak', OL:'Olive', OM:'Omelet', ON:'Onion', OO:'Owl', OP:'Octopus', OQ:'Opera queen', OR:'Orange', OS:'Ostrich', OT:'Otter', OU:'Ounce weight', OV:'Oven', OW:'Owl', OX:'Ox',
+    PA:'Panda', PB:'Peanut butter', PC:'Computer', PD:'Padlock', PE:'Pear', PF:'Pufferfish', PG:'Pig', PH:'Phone', PI:'Pie', PJ:'Pajamas', PK:'Peacock', PL:'Plane', PM:'Pumpkin', PN:'Piano', PO:'Pony', PP:'Puppy', PQ:'Peacock queen', PR:'Pirate', PS:'Pencil', PT:'Potato', PU:'Puppet', PV:'Pavement', PW:'Paw', PX:'Phoenix',
+    QA:'Quail', QB:'Quarterback', QC:'Queen of clubs', QD:'Quicksand', QE:'Queen elephant', QF:'Queen frog', QG:'Queen guitar', QH:'Queen hat', QI:'Quill', QJ:'Queen jewel', QK:'Quick key', QL:'Quilt', QM:'Queen mask', QN:'Queen nest', QO:'Quokka', QP:'Queen pizza', QQ:'Queen', QR:'Quiver', QS:'Queen sword', QT:'Quarter', QU:'Quokka', QV:'Queen violin', QW:'Quill pen', QX:'Queen xylophone',
+    RA:'Rabbit', RB:'Robot', RC:'Racecar', RD:'Road', RE:'Reindeer', RF:'Roof', RG:'Rug', RH:'Rhino', RI:'Ring', RJ:'Rope jump', RK:'Rock', RL:'Rail', RM:'Remote', RN:'Rain', RO:'Rose', RP:'Rope', RQ:'Rocket queen', RR:'Razor', RS:'Roses', RT:'Robot', RU:'Ruby', RV:'RV camper', RW:'Rainbow', RX:'Prescription',
+    SA:'Sailboat', SB:'Snowball', SC:'Scissors', SD:'Sand', SE:'Seahorse', SF:'Sofa', SG:'Sunglasses', SH:'Shoe', SI:'Siren', SJ:'Snow jacket', SK:'Skateboard', SL:'Sloth', SM:'Smoke', SN:'Snake', SO:'Soap', SP:'Spider', SQ:'Squirrel', SR:'Syringe', SS:'Spaceship', ST:'Star', SU:'Sun', SV:'Sieve', SW:'Sword', SX:'Saxophone',
+    TA:'Taco', TB:'Tub', TC:'Teacup', TD:'Toad', TE:'Telescope', TF:'Tofu', TG:'Tiger', TH:'Thumb', TI:'Tie', TJ:'Taj Mahal', TK:'Tank', TL:'Towel', TM:'Tomato', TN:'Tuna', TO:'Toe', TP:'Teapot', TQ:'Trophy queen', TR:'Tree', TS:'Toast', TT:'Tutu', TU:'Turtle', TV:'Television', TW:'Tower', TX:'Taxi',
+    UA:'Umbrella', UB:'Unicycle', UC:'Unicorn', UD:'Underwear', UE:'Unicorn egg', UF:'UFO', UG:'Ugly sweater', UH:'Umbrella hat', UI:'User interface', UJ:'Unicorn jump', UK:'Ukulele', UL:'Ultralight plane', UM:'Umbrella', UN:'Unicorn', UO:'Udon', UP:'Up arrow', UQ:'Unique queen', UR:'Urchin', US:'USB stick', UT:'Utensil', UU:'Unicorn umbrella', UV:'UV lamp', UW:'Underwater', UX:'X-ray screen',
+    VA:'Vase', VB:'Volleyball', VC:'Vacuum cleaner', VD:'Video', VE:'Veil', VF:'Venus flytrap', VG:'Video game', VH:'Vehicle', VI:'Violin', VJ:'Video jockey', VK:'Viking', VL:'Volcano', VM:'Vampire', VN:'Van', VO:'Vulture', VP:'Viper', VQ:'Viking queen', VR:'VR headset', VS:'Vest', VT:'Vulture', VU:'Vacuum', VV:'Velvet', VW:'Volkswagen', VX:'Vortex',
+    WA:'Waffle', WB:'Web', WC:'Water closet', WD:'Wood', WE:'Whale', WF:'Waterfall', WG:'Wig', WH:'Wheel', WI:'Witch', WJ:'Water jug', WK:'Wok', WL:'Wall', WM:'Watermelon', WN:'Wand', WO:'Wolf', WP:'Whip', WQ:'Wicked queen', WR:'Wrench', WS:'Wristwatch', WT:'Water', WU:'Wool', WV:'Waves', WW:'Wizard', WX:'Wax',
+    XA:'X-ray astronaut', XB:'X-ray bear', XC:'X-ray cat', XD:'X-ray dragon', XE:'X-ray elephant', XF:'X-ray fox', XG:'X-ray gorilla', XH:'X-ray hedgehog', XI:'X-ray iguana', XJ:'X-ray jester', XK:'X-ray knight', XL:'X-ray lion', XM:'X-ray magician', XN:'X-ray ninja', XO:'X-ray octopus', XP:'X-ray pirate', XQ:'X-ray queen', XR:'X-ray robot', XS:'X-ray snake', XT:'X-ray tiger', XU:'X-ray unicorn', XV:'X-ray vampire', XW:'X-ray wizard', XX:'Xylophone'
+  };
+  function suggestion(pair){
+    if(SPECIAL[pair])return SPECIAL[pair];
+    const a=ABC.indexOf(pair[0]),b=ABC.indexOf(pair[1]);
+    return `${ACTORS[a]} ${VERBS[(a*7+b*5)%VERBS.length]} ${OBJECTS[b]}`;
+  }
+  const STORAGE='bld-memo-v1';
+  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[]};}
+  function load(){try{const s=JSON.parse(localStorage.getItem(STORAGE));if(s&&s.version===1&&s.custom&&s.progress)return {...fresh(),...s};}catch(e){}return fresh();}
+  let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter='all',search='',editing=null,flash=null,flashFilter='all',sequence=null,seqLength=4,seqKnownOnly=false;
+  const $=(q,root=document)=>root.querySelector(q);
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const valid=p=>typeof p==='string'&&p.length===2&&[...p].every(c=>ABC.includes(c));
+  const assoc=p=>state.custom[p]?.image||suggestion(p);
+  const note=p=>state.custom[p]?.note||'';
+  const stat=p=>state.progress[p]||{seen:0,good:0,hard:0,again:0,streak:0,due:0};
+  function save(){try{localStorage.setItem(STORAGE,JSON.stringify(state));return true;}catch(e){toast('Storage unavailable. Export your data to avoid losing it.');return false;}}
+  function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600);}
+  function counts(){const pp=PAIRS.filter(p=>stat(p).seen>0);return {edited:Object.keys(state.custom).length,practiced:pp.length,strong:pp.filter(p=>stat(p).streak>=3).length,reviewed:pp.reduce((a,p)=>a+stat(p).seen,0)};}
+  function updateStats(){const c=counts();$('#editedCount').innerHTML=`${c.edited} <em>/ 576</em>`;$('#practicedCount').innerHTML=`${c.practiced} <em>/ 576</em>`;$('#masteredCount').innerHTML=`${c.strong} <em>pairs</em>`;}
+  function setTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===next);b.setAttribute('aria-current',b.dataset.tab===next?'page':'false');});render();window.scrollTo({top:0,behavior:'instant'});}
+  document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>setTab(el.dataset.tab)));
+  function render(){updateStats();if(tab==='matrix')renderMatrix();else if(tab==='cards')renderCards();else if(tab==='sequence')renderSequence();else renderProgress();}
+  function pairCard(p){let s=stat(p);return `<button class="paircard ${state.custom[p]?'edited':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;}
+  function renderMatrix(){
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Your letter-pair matrix</h3><p>Tap any pair to replace its starter image with your own.</p></div><span class="pill">24 × 24 · 576 pairs</span></div>
+    <div class="toolbar"><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option></select></div>
+    <div id="matrixContent"></div>`;
+    $('#pairSearch').addEventListener('input',e=>{search=e.target.value;renderMatrixContent();});
+    $('#pairFilter').addEventListener('change',e=>{filter=e.target.value;renderMatrixContent();});
+    document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{matrixMode=b.dataset.mode;renderMatrix();}));
+    renderMatrixContent();
+  }
+  function isVisible(p){let q=search.trim().toLowerCase();if(q&&!p.toLowerCase().includes(q)&&!assoc(p).toLowerCase().includes(q)&&!note(p).toLowerCase().includes(q))return false;let s=stat(p);return filter==='edited'?!!state.custom[p]:filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
+  function renderMatrixContent(){
+    const box=$('#matrixContent');if(!box)return;
+    if(matrixMode==='row'){
+      const all=PAIRS.filter(p=>p[0]===selectedRow&&isVisible(p));
+      box.innerHTML=`<div class="letters" aria-label="First letter">${[...ABC].map(ch=>`<button class="letter ${selectedRow===ch?'active':''}" data-row="${ch}" aria-pressed="${selectedRow===ch}">${ch}</button>`).join('')}</div><div class="info-line">${all.length} pair${all.length===1?'':'s'} for ${selectedRow} · Tap to edit</div>${all.length?`<div class="cardgrid">${all.map(pairCard).join('')}</div>`:'<div class="empty">No pairs match this row and filter. Try another first letter or clear the search.</div>'}`;
+      box.querySelectorAll('[data-row]').forEach(b=>b.addEventListener('click',()=>{selectedRow=b.dataset.row;renderMatrixContent();}));
+    } else {
+      const list=PAIRS.filter(isVisible);
+      if(list.length===0){box.innerHTML='<div class="empty">No matching pairs. Try a different search or filter.</div>';return;}
+      box.innerHTML=`<div class="info-line">Showing ${list.length} of 576 pairs · Scroll the table sideways to explore</div><div class="table-scroll"><table class="matrix-table"><thead><tr><th></th>${[...ABC].map(ch=>`<th scope="col">${ch}</th>`).join('')}</tr></thead><tbody>${[...ABC].map(a=>`<tr><td>${a}</td>${[...ABC].map(b=>{let p=a+b;return `<td>${isVisible(p)?`<button data-edit="${p}" class="${state.custom[p]?'changed':''}" title="${esc(assoc(p))}"><strong>${p}</strong><small>${esc(assoc(p))}</small></button>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
+    }
+    box.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.edit)));
+  }
+  function openEditor(p){if(!valid(p))return;editing=p;$('#dialogTitle').textContent=`${p} · Your mental image`;$('#defaultSuggestion').innerHTML=`<strong>Starter suggestion:</strong> ${esc(suggestion(p))}<br><span style="font-size:11px;color:var(--muted)">All 576 images are starting points—edit freely.</span>`;$('#imageInput').value=assoc(p);$('#noteInput').value=note(p);$('#restoreBtn').disabled=!state.custom[p];$('#editDialog').showModal();}
+  function closeEditor(){$('#editDialog').close();editing=null;}
+  $('#closeDialog').addEventListener('click',closeEditor);
+  $('#editDialog').addEventListener('click',e=>{if(e.target===$('#editDialog'))closeEditor();});
+  $('#editDialog').addEventListener('close',()=>{editing=null;});
+  $('#editForm').addEventListener('submit',e=>{e.preventDefault();if(!editing)return;let p=editing,img=$('#imageInput').value.trim(),description=$('#noteInput').value.trim();if(!img){$('#imageInput').focus();return;}if(img===suggestion(p)&&!description)delete state.custom[p];else state.custom[p]={image:img,note:description};save();closeEditor();render();toast(`${p} association saved`);});
+  $('#restoreBtn').addEventListener('click',()=>{if(!editing)return;let p=editing;delete state.custom[p];save();closeEditor();render();toast(`${p} restored to starter image`);});
+  function weightedCard(){
+    let eligible=PAIRS.filter(p=>flashFilter==='edited'?!!state.custom[p]:flashFilter==='weak'?stat(p).seen>0&&stat(p).streak<3:flashFilter==='studied'?stat(p).seen>0:true);
+    if(!eligible.length)return null;
+    let recent=flash?.pair;
+    let candidates=eligible.filter(p=>p!==recent);if(!candidates.length)candidates=eligible;
+    let weights=candidates.map(p=>{let s=stat(p),now=Date.now();if(!s.seen)return 3; if(s.due&&s.due<=now)return Math.max(2,7-s.streak);if(s.streak>=3)return .35;return Math.max(.5,4-s.streak);});
+    let total=weights.reduce((a,b)=>a+b,0),random=Math.random()*total;
+    for(let i=0;i<candidates.length;i++){random-=weights[i];if(random<=0)return candidates[i];}return candidates.at(-1);
+  }
+  function newFlash(){let p=weightedCard();flash=p?{pair:p,revealed:false}:null;updateStats();renderCards();}
+  function renderCards(){
+    if(!flash|| (flashFilter==='edited'&&!state.custom[flash.pair]) || (flashFilter==='studied'&&!stat(flash.pair).seen) || (flashFilter==='weak'&&!(stat(flash.pair).seen>0&&stat(flash.pair).streak<3))){let p=weightedCard();flash=p?{pair:p,revealed:false}:null;}
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Instant image recall</h3><p>See the letters. Picture your association before revealing it.</p></div><span class="pill">Learn by recognition</span></div>
+    <div class="options-row"><label for="flashFilter">Practice</label><select id="flashFilter" class="mini-select"><option value="all" ${flashFilter==='all'?'selected':''}>All 576 pairs</option><option value="edited" ${flashFilter==='edited'?'selected':''}>My edited pairs</option><option value="weak" ${flashFilter==='weak'?'selected':''}>Needs practice</option><option value="studied" ${flashFilter==='studied'?'selected':''}>Previously studied</option></select><button class="btn sm" id="chooseNew">↻ New pair</button></div>
+    ${flash?`<div class="practice-area"><div class="flashcard"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${flash.pair}</div>${flash.revealed?`<div class="meaning">${esc(assoc(flash.pair))}</div>${note(flash.pair)?`<div class="note">${esc(note(flash.pair))}</div>`:''}`:'<div class="concealed">Imagine the picture first. Then reveal.</div>'}</div><div class="controls">${flash.revealed?`<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>`:`<button class="btn primary" id="revealFlash">Reveal image</button>`}</div><p class="subhint">${flash.revealed?'Rate your recall. Hard and Again bring the pair back sooner.':'Don’t just read the image—try to visualize it.'}</p></div>`:'<div class="empty">There are no cards in this practice set yet. Choose another filter or edit a few associations first.</div>'}`;
+    $('#flashFilter').addEventListener('change',e=>{flashFilter=e.target.value;flash=null;renderCards();});$('#chooseNew').addEventListener('click',newFlash);
+    $('#revealFlash')?.addEventListener('click',()=>{flash.revealed=true;renderCards();});$('#editFlash')?.addEventListener('click',()=>openEditor(flash.pair));
+    document.querySelectorAll('[data-rate]').forEach(b=>b.addEventListener('click',()=>rateFlash(b.dataset.rate)));
+  }
+  function rateFlash(rating){if(!flash)return;const p=flash.pair,s={...stat(p)},now=Date.now();s.seen++;s.last=now;s[rating]=(s[rating]||0)+1;s.streak=rating==='good'?s.streak+1:rating==='hard'?Math.max(0,s.streak-1):0;
+    const days=rating==='good'?Math.min(45,Math.round(1.7**Math.min(s.streak,7))):rating==='hard'?1:1/1440;
+    s.due=now+days*86400000;state.progress[p]=s;state.history.push({at:now,pair:p,rating});if(state.history.length>2000)state.history=state.history.slice(-2000);save();newFlash();}
+  function drawSequence(){let pool=seqKnownOnly?PAIRS.filter(p=>stat(p).seen>0):[...PAIRS];if(pool.length<seqLength){toast(`Practice at least ${seqLength} different pairs first.`);return;}
+    const selected=[];for(let k=0;k<seqLength;k++){const i=Math.floor(Math.random()*pool.length);selected.push(pool.splice(i,1)[0]);}sequence={items:selected,phase:'study',answers:[],count:0};renderSequence();}
+  function renderSequence(){
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Build longer memo</h3><p>Study a chain of images, hide it, then type back its letters in order.</p></div><span class="pill">Visual sequencing</span></div>
+    <div class="options-row"><label for="seqLength">Pairs per sequence</label><select class="mini-select" id="seqLength">${[2,3,4,6,8,12].map(n=>`<option value="${n}" ${seqLength===n?'selected':''}>${n} pairs · ${n*2} letters</option>`).join('')}</select><label style="display:flex;align-items:center;gap:8px"><input id="knownOnly" type="checkbox" style="width:17px;height:17px;accent-color:var(--accent);margin:0" ${seqKnownOnly?'checked':''}> Studied pairs only</label></div>
+    ${!sequence?`<div class="flashcard" style="min-height:260px"><div class="micro">Ready for a memory challenge?</div><div class="bigpair" style="font-size:65px;letter-spacing:-3px">AB · CK · FR</div><div class="concealed">Your mental images become a story.</div></div><div class="controls"><button class="btn primary" id="startSeq">Generate sequence</button></div>`:
+     `<div class="callout"><strong>${sequence.phase==='study'?'Memorize the images.':sequence.phase==='recall'?'Recall in order.':`${sequence.count} of ${sequence.items.length} correct.`}</strong> ${sequence.phase==='study'?'Create a little mental scene connecting each image, then hide the sequence.':sequence.phase==='recall'?'Enter each two-letter pair. The images stay hidden until you check.':sequence.count===sequence.items.length?'Perfect sequence! Try increasing the length.':'Review the misses and try another sequence.'}</div><div class="sequence">${sequence.items.map((p,i)=>{let stage=sequence.phase;let answer=sequence.answers[i]||'';let correct=answer.toUpperCase()===p;return `<div class="seqpair ${stage==='result'?(correct?'correct':'wrong'):''}">${stage==='study'?`<strong>${p}</strong><span>${esc(assoc(p))}</span>`:stage==='recall'?`<label for="seq-${i}" class="hide">Pair ${i+1}</label><input id="seq-${i}" data-seq-index="${i}" maxlength="2" autocapitalize="characters" autocomplete="off" spellcheck="false" inputmode="text" placeholder="··"><span>Pair ${i+1}</span>`:`<strong style="color:${correct?'var(--green)':'var(--red)'}">${esc(answer||'—')}</strong><div class="answer">${correct?'Correct':`Answer: ${p}`}</div><span>${esc(assoc(p))}</span>`}</div>`;}).join('')}</div><div class="controls">${sequence.phase==='study'?'<button class="btn primary" id="hideSeq">Hide & recall →</button>':sequence.phase==='recall'?'<button class="btn primary" id="checkSeq">Check recall</button>':'<button class="btn" id="studySeq">Study same sequence</button>'}<button class="btn" id="startSeq">↻ New sequence</button></div>`}
+    <p class="subhint">This practices image-based recall, not actual sticker tracing. M2/OP-specific drills can come next.</p>`;
+    $('#seqLength').addEventListener('change',e=>{seqLength=+e.target.value;sequence=null;renderSequence();});$('#knownOnly').addEventListener('change',e=>{seqKnownOnly=e.target.checked;sequence=null;renderSequence();});
+    $('#startSeq')?.addEventListener('click',drawSequence);
+    $('#hideSeq')?.addEventListener('click',()=>{sequence.phase='recall';renderSequence();$('#seq-0')?.focus();});
+    $('#studySeq')?.addEventListener('click',()=>{sequence.phase='study';renderSequence();});
+    $('#checkSeq')?.addEventListener('click',()=>{const inputs=[...document.querySelectorAll('[data-seq-index]')];sequence.answers=inputs.map(el=>el.value.toUpperCase().replace(/[^A-X]/g,'').slice(0,2));sequence.count=sequence.answers.filter((v,i)=>v===sequence.items[i]).length;sequence.phase='result';state.seqRuns++;if(sequence.count===sequence.items.length)state.seqPerfect++;save();renderSequence();});
+    document.querySelectorAll('[data-seq-index]').forEach((inp,i,all)=>{inp.addEventListener('input',()=>{inp.value=inp.value.toUpperCase().replace(/[^A-X]/g,'').slice(0,2);if(inp.value.length===2&&all[i+1])all[i+1].focus();});inp.addEventListener('keydown',e=>{if(e.key==='Enter')$('#checkSeq')?.click();if(e.key==='Backspace'&&!inp.value&&all[i-1])all[i-1].focus();});});
+  }
+  function renderProgress(){
+    const c=counts(), reviewed=PAIRS.filter(p=>stat(p).seen>0).sort((a,b)=>(stat(b).again*2+stat(b).hard)-(stat(a).again*2+stat(a).hard));
+    const due=PAIRS.filter(p=>stat(p).seen>0&&stat(p).due<Date.now()).length;
+    const acc=state.history.length?Math.round(100*state.history.filter(h=>h.rating==='good').length/state.history.length):0;
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Your training progress</h3><p>Everything is saved in this browser on this device.</p></div><span class="pill">No account · No tracking</span></div>
+    <div class="progress-grid"><div class="progressbox"><h4>Dictionary coverage</h4><div class="progress-meter"><span>Pairs practiced</span><strong>${c.practiced} / 576</strong></div><div class="progressbar"><span style="width:${(c.practiced/576*100).toFixed(2)}%"></span></div><div class="progress-meter"><span>Strong recall (3 consecutive “Got it”)</span><strong>${c.strong} / 576</strong></div><div class="progressbar"><span style="width:${(c.strong/576*100).toFixed(2)}%"></span></div><p>You're building a reliable visual vocabulary, one pair at a time.</p></div>
+    <div class="progressbox"><h4>Practice overview</h4><div class="progress-meter"><span>Flashcard reviews</span><strong>${c.reviewed}</strong></div><div class="progress-meter" style="margin-top:13px"><span>“Got it” rate</span><strong>${acc}%</strong></div><div class="progress-meter" style="margin-top:13px"><span>Previously studied cards due</span><strong>${due}</strong></div><div class="progress-meter" style="margin-top:13px"><span>Perfect sequences</span><strong>${state.seqPerfect} / ${state.seqRuns}</strong></div><p>Again, Hard, and Got it ratings influence which flashcards come up next.</p></div>
+    <div class="progressbox"><h4>Pairs that need extra attention</h4>${reviewed.length?`<div class="trouble-list">${reviewed.slice(0,14).map(p=>`<button data-trouble="${p}" title="Edit ${p}">${p}</button>`).join('')}</div><p>Tap a pair to adjust its mental image.</p>`:'<p>Once you review a few flashcards, your tougher pairs will show here.</p>'}</div>
+    <div class="progressbox"><h4>Your data & backups</h4><p>Edits and practice history live in browser storage, not in the website files. Export periodically, especially before changing phones or clearing Safari data.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><button id="exportBtn" class="btn sm primary">↓ Export backup</button><button id="importBtn" class="btn sm">↑ Import backup</button><button id="resetBtn" class="btn sm again">Reset data</button></div></div></div>`;
+    $('#exportBtn').addEventListener('click',exportData);$('#importBtn').addEventListener('click',()=>$('#importInput').click());$('#resetBtn').addEventListener('click',resetData);document.querySelectorAll('[data-trouble]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.trouble)));
+  }
+  function exportData(){const payload={...state,exportedAt:new Date().toISOString(),app:'BLD Memo'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download='bld-memo-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Backup exported');}
+  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];state=clean;save();flash=null;sequence=null;render();toast('Backup imported successfully');}catch(err){toast('Could not import: '+err.message);}});
+  function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();save();flash=null;sequence=null;render();toast('Local data reset');}}
+  document.addEventListener('keydown',e=>{if($('#editDialog').open||tab!=='cards'||e.target.matches('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();if(flash&&!flash.revealed){flash.revealed=true;renderCards();}}else if(flash?.revealed&&['Digit1','Digit2','Digit3'].includes(e.code)){rateFlash(({Digit1:'again',Digit2:'hard',Digit3:'good'})[e.code]);}});
+  render();
+  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+  </script>
+</body>
+</html>
