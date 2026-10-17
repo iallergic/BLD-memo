@@ -1,6 +1,8 @@
 # BLD Memo — a mobile-first 3BLD memory trainer
 
 ## Features
+- **Unobserved pairs on the matrix:** the full 576-pair coverage flags from the original 250,000 scrambles mark zero-observation edge pairs (125), corner pairs (184), and pairs unobserved in either (44). Browse and full matrix both show the event-specific flags; filter by each category. A zero count is empirical, not proof that the combination is impossible.
+- **Combined Top 48** deduplicates overlapping edge and corner pair labels (BC, BD, CD, QC), for a total of 92 unique associations.
 - **Realistic 3BLD frequency:** precomputed ranks from 250,000 seeded random 30-move scrambles with Speffz lettering, M2 edges using DF (U) and OP corners using ULB (A), tracing separate memo streams and breaking cycles alphabetically. Choose top 24, top 48, or a mixed top-48-each practice pool in Cards or Memo; view rankings in Stats. The random-move distribution approximates but is not identical to uniform random-state scrambles. M2's even-target execution adjustment does not change memo letter tracing.
 - The frequency data was generated offline, not by storing your own memo or uploading any practice history. Your custom word edits and existing review progress remain local.
 
