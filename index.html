@@ -352,6 +352,26 @@
     const last=state.memoLogs.pop();for(const p of last.pairs){const left=(state.frequency[p]||0)-1;if(left>0)state.frequency[p]=left;else delete state.frequency[p];}
     save();flash=null;sequence=null;renderProgress();toast('Last logged memo undone');
   }
+  function renderSimStats(){
+    if(!simEdge.length||!simCorner.length)return '';
+    const row=(event)=>{
+      const data=event==='edge'?simEdge:simCorner;
+      const total=window.BLD_REALISTIC?.[event==='edge'?'edgeTotal':'cornerTotal']||1;
+      return data.slice(0,12).map(({pair,count},i)=>
+        '<div style="display:flex;align-items:center;gap:7px;margin:5px 0">'
+        +'<span style="font-size:12px;color:var(--muted);width:22px">'+(i+1)+'.</span>'
+        +'<button class="btn sm" style="flex:1;justify-content:flex-start;text-align:left" data-trouble="'+pair+'">'+pair+' · '+esc(assoc(pair))+'</button>'
+        +'<span style="font-size:12px;color:var(--muted);white-space:nowrap">'+(100*count/total).toFixed(2)+'%</span></div>'
+      ).join('');
+    };
+    return '<div class="progressbox" style="grid-column:1/-1"><h4>Realistic 3BLD frequency · simulated</h4>'
+      +'<p>Based on 250,000 legal 30-turn scrambles, with standard Speffz lettering, DF buffer (M2 edges), and ULB buffer (Old Pochmann corners). Alphabetical cycle breaks were used. These are simulated random-move scrambles, not exact uniform random cube states.</p>'
+      +'<p>Cards and Memo now have Top 24, Top 48, and combined simulated practice sets. Percentages below are the share of paired memo targets in that event, not the chance a pair occurs in one solve. Your own memo log is still separate.</p>'
+      +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;margin-top:18px">'
+      +'<div><h4>M2 edges · DF buffer</h4>'+row('edge')+'</div>'
+      +'<div><h4>OP corners · ULB buffer</h4>'+row('corner')+'</div>'
+      +'</div><p>Tap any pair to personalize its association. Rankings depend on cycle breaks and do not mean lower-ranked pairs cannot appear.</p></div>';
+  }
   function renderProgress(){
     const c=counts(), reviewed=PAIRS.filter(p=>stat(p).seen>0).sort((a,b)=>(stat(b).again*2+stat(b).hard)-(stat(a).again*2+stat(a).hard));
     const due=PAIRS.filter(p=>stat(p).seen>0&&stat(p).due<Date.now()).length;
@@ -368,7 +388,7 @@
     </div>`;
 
     $('#app').innerHTML=`<div class="section-head"><div><h3>Your training progress</h3><p>Everything is saved in this browser on this device.</p></div><span class="pill">No account · No tracking</span></div>
-    <div class="progress-grid">${frequencyPanel}<div class="progressbox"><h4>Dictionary coverage</h4><div class="progress-meter"><span>Pairs practiced</span><strong>${c.practiced} / 576</strong></div><div class="progressbar"><span style="width:${(c.practiced/576*100).toFixed(2)}%"></span></div><div class="progress-meter"><span>Strong recall (3 consecutive “Got it”)</span><strong>${c.strong} / 576</strong></div><div class="progressbar"><span style="width:${(c.strong/576*100).toFixed(2)}%"></span></div><p>You're building a reliable visual vocabulary, one pair at a time.</p></div>
+    <div class="progress-grid">${renderSimStats()}${frequencyPanel}<div class="progressbox"><h4>Dictionary coverage</h4><div class="progress-meter"><span>Pairs practiced</span><strong>${c.practiced} / 576</strong></div><div class="progressbar"><span style="width:${(c.practiced/576*100).toFixed(2)}%"></span></div><div class="progress-meter"><span>Strong recall (3 consecutive “Got it”)</span><strong>${c.strong} / 576</strong></div><div class="progressbar"><span style="width:${(c.strong/576*100).toFixed(2)}%"></span></div><p>You're building a reliable visual vocabulary, one pair at a time.</p></div>
     <div class="progressbox"><h4>Practice overview</h4><div class="progress-meter"><span>Flashcard reviews</span><strong>${c.reviewed}</strong></div><div class="progress-meter" style="margin-top:13px"><span>“Got it” rate</span><strong>${acc}%</strong></div><div class="progress-meter" style="margin-top:13px"><span>Previously studied cards due</span><strong>${due}</strong></div><div class="progress-meter" style="margin-top:13px"><span>Perfect sequences</span><strong>${state.seqPerfect} / ${state.seqRuns}</strong></div><p>Again, Hard, and Got it ratings influence which flashcards come up next.</p></div>
     <div class="progressbox"><h4>Pairs that need extra attention</h4>${reviewed.length?`<div class="trouble-list">${reviewed.slice(0,14).map(p=>`<button data-trouble="${p}" title="Edit ${p}">${p}</button>`).join('')}</div><p>Tap a pair to adjust its mental image.</p>`:'<p>Once you review a few flashcards, your tougher pairs will show here.</p>'}</div>
     <div class="progressbox"><h4>Your data & backups</h4><p>Edits and practice history live in browser storage, not in the website files. Export periodically, especially before changing phones or clearing Safari data.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><button id="exportBtn" class="btn sm primary">↓ Export backup</button><button id="importBtn" class="btn sm">↑ Import backup</button><button id="resetBtn" class="btn sm again">Reset data</button></div></div></div>`;
