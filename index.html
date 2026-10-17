@@ -74,6 +74,13 @@
     .paircard .pname { font-size:11px; line-height:1.35; color:var(--soft); overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
     .paircard .tag { position:absolute; top:12px; right:10px; font-size:10px; color:var(--green); }
     .paircard .tag.purple { color:var(--accent2); }
+    .paircard.zero-both { border-color:#66546a; background:#1e1d2c; }
+    .paircard .zero-label { font-size:10px; color:#dfb9a8; font-weight:650; margin-top:auto; }
+    .matrix-table td button.zero-both { background:#28212f; }
+    .matrix-table td button .zero-label { font-size:10px; color:#dfb9a8; }
+    .matrix-table td, .matrix-table td button { height:76px; }
+    .matrix-note { background:#192239; border:1px solid var(--line); border-radius:12px; padding:11px 14px; margin:0 0 18px; color:var(--soft); font-size:12px; line-height:1.6; }
+    .matrix-note strong { color:var(--text); }
     .empty { border:1px dashed var(--line); border-radius:13px; padding:40px 15px; text-align:center; color:var(--muted); font-size:13px; }
     .table-scroll { max-height:560px; overflow:auto; border:1px solid var(--line); border-radius:13px; }
     .matrix-table { border-collapse:separate; border-spacing:0; table-layout:fixed; min-width:1610px; }
@@ -247,6 +254,30 @@
   const SIM_MODES=['simE24','simC24','simE48','simC48','simBoth48'];
   const SIM_LABELS=['Top 24 · M2 edges','Top 24 · OP corners','Top 48 · M2 edges','Top 48 · OP corners','Top 48 each · combined'];
   function simOptions(selected){return '<optgroup label="Simulated 3BLD frequency">'+SIM_MODES.map((id,i)=>`<option value="${id}" ${selected===id?'selected':''}>${SIM_LABELS[i]}</option>`).join('')+'</optgroup>';}
+
+  // Full 576-pair coverage flags from the SAME 250,000 scrambles as the ranked dataset.
+  // Each hexadecimal nibble maps to four pairs in A–X matrix order; 1 = seen, 0 = not observed.
+  function wasObserved(p,event){
+    const hex=window.BLD_REALISTIC?.[event==='edge'?'edgeSeenHex':'cornerSeenHex'];
+    const idx=PAIRS.indexOf(p);
+    if(!hex||hex.length!==144||idx<0)return null;
+    const nibble=parseInt(hex[Math.floor(idx/4)],16);
+    return !!((nibble>>(3-(idx%4)))&1);
+  }
+  function zeroKind(p){
+    const e=wasObserved(p,'edge'),c=wasObserved(p,'corner');
+    if(e===null||c===null)return '';
+    return !e&&!c?'both':!e?'edges':!c?'corners':'';
+  }
+  function zeroBadge(p){
+    const kind=zeroKind(p);
+    return kind==='both'?'0 E + C':kind==='edges'?'0 edges':kind==='corners'?'0 corners':'';
+  }
+  function zeroSummary(){
+    return {edge:PAIRS.filter(p=>wasObserved(p,'edge')===false).length,
+      corner:PAIRS.filter(p=>wasObserved(p,'corner')===false).length,
+      both:PAIRS.filter(p=>zeroKind(p)==='both').length};
+  }
   // Pair frequency is based only on memo the user logs from actual traced cubes.
   function frequentPairs(){return Object.entries(state.frequency||{}).filter(([p,n])=>valid(p)&&Number.isFinite(n)&&n>0).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,48).map(([p])=>p);}
   function practicePool(f,studiedOnly=false){
@@ -264,17 +295,24 @@
   function setTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===next);b.setAttribute('aria-current',b.dataset.tab===next?'page':'false');});render();window.scrollTo({top:0,behavior:'instant'});}
   document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>setTab(el.dataset.tab)));
   function render(){updateStats();if(tab==='matrix')renderMatrix();else if(tab==='cards')renderCards();else if(tab==='sequence')renderSequence();else renderProgress();}
-  function pairCard(p){let s=stat(p);return `<button class="paircard ${state.custom[p]?'edited':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;}
+  function pairCard(p){let s=stat(p),kind=zeroKind(p);
+    return `<button class="paircard ${state.custom[p]?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 250k simulations':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
+  }
   function renderMatrix(){
     $('#app').innerHTML=`<div class="section-head"><div><h3>Your letter-pair matrix</h3><p>Tap any pair to replace its starter image with your own.</p></div><span class="pill">24 × 24 · 576 pairs</span></div>
-    <div class="toolbar"><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option></select></div>
+    <div class="toolbar"><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option></select></div>
+    <div class="matrix-note"><strong>From 250,000 simulated scrambles:</strong> ${zeroSummary().both} pairs were not observed in either memo, ${zeroSummary().edge} were not observed for edges, and ${zeroSummary().corner} were not observed for corners. <strong>0 E + C</strong> means neither event; <strong>0 edges</strong> or <strong>0 corners</strong> is event-specific. A zero count in this sample does not prove a pair is impossible.</div>
     <div id="matrixContent"></div>`;
     $('#pairSearch').addEventListener('input',e=>{search=e.target.value;renderMatrixContent();});
     $('#pairFilter').addEventListener('change',e=>{filter=e.target.value;renderMatrixContent();});
     document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{matrixMode=b.dataset.mode;renderMatrix();}));
     renderMatrixContent();
   }
-  function isVisible(p){let q=search.trim().toLowerCase();if(q&&!p.toLowerCase().includes(q)&&!assoc(p).toLowerCase().includes(q)&&!note(p).toLowerCase().includes(q))return false;let s=stat(p);return filter==='edited'?!!state.custom[p]:filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
+  function isVisible(p){let q=search.trim().toLowerCase();if(q&&!p.toLowerCase().includes(q)&&!assoc(p).toLowerCase().includes(q)&&!note(p).toLowerCase().includes(q))return false;let s=stat(p);
+    if(filter==='zeroBoth')return zeroKind(p)==='both';
+    if(filter==='zeroEdges')return wasObserved(p,'edge')===false;
+    if(filter==='zeroCorners')return wasObserved(p,'corner')===false;
+    return filter==='edited'?!!state.custom[p]:filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
   function renderMatrixContent(){
     const box=$('#matrixContent');if(!box)return;
     if(matrixMode==='row'){
@@ -284,7 +322,7 @@
     } else {
       const list=PAIRS.filter(isVisible);
       if(list.length===0){box.innerHTML='<div class="empty">No matching pairs. Try a different search or filter.</div>';return;}
-      box.innerHTML=`<div class="info-line">Showing ${list.length} of 576 pairs · Scroll the table sideways to explore</div><div class="table-scroll"><table class="matrix-table"><thead><tr><th></th>${[...ABC].map(ch=>`<th scope="col">${ch}</th>`).join('')}</tr></thead><tbody>${[...ABC].map(a=>`<tr><td>${a}</td>${[...ABC].map(b=>{let p=a+b;return `<td>${isVisible(p)?`<button data-edit="${p}" class="${state.custom[p]?'changed':''}" title="${esc(assoc(p))}"><strong>${p}</strong><small>${esc(assoc(p))}</small></button>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
+      box.innerHTML=`<div class="info-line">Showing ${list.length} of 576 pairs · Scroll the table sideways to explore</div><div class="table-scroll"><table class="matrix-table"><thead><tr><th></th>${[...ABC].map(ch=>`<th scope="col">${ch}</th>`).join('')}</tr></thead><tbody>${[...ABC].map(a=>`<tr><td>${a}</td>${[...ABC].map(b=>{let p=a+b;return `<td>${isVisible(p)?`<button data-edit="${p}" class="${state.custom[p]?'changed':''} ${zeroKind(p)==='both'?'zero-both':''}" title="${esc(assoc(p))} · ${zeroBadge(p)||'observed in both simulations'}"><strong>${p}</strong><small>${esc(assoc(p))}</small>${zeroBadge(p)?`<small class="zero-label">${zeroBadge(p)}</small>`:''}</button>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
     }
     box.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.edit)));
   }
