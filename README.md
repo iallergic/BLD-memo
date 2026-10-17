@@ -1,6 +1,12 @@
 # BLD Memo — a mobile-first 3BLD memory trainer
 
 ## Features
+- **Realistic 3BLD frequency:** precomputed ranks from 250,000 seeded random 30-move scrambles with Speffz lettering, M2 edges using DF (U) and OP corners using ULB (A), tracing separate memo streams and breaking cycles alphabetically. Choose top 24, top 48, or a mixed top-48-each practice pool in Cards or Memo; view rankings in Stats. The random-move distribution approximates but is not identical to uniform random-state scrambles. M2's even-target execution adjustment does not change memo letter tracing.
+- The frequency data was generated offline, not by storing your own memo or uploading any practice history. Your custom word edits and existing review progress remain local.
+
+### Simulation basis
+Uses the same Speffz face-letter layout and memo tracing convention as [blindcube](https://github.com/lukacslacko/blindcube) (MIT-licensed reference); cycle breaks always select the alphabetically earliest unsolved piece. Simulated percentages are share of complete memo pairs (not probability per solve); trailing odd targets are not paired. Ranking is not a guarantee of mathematical impossibility for unobserved or lower-ranked pairs.
+
 - **Letter groups:** focus on one first-letter group (A through X; 24 pairs each) in Cards and Memo.
 - **Most encountered:** log pairs from actual cube memos in Stats to build a personal top-48 practice set (not an unverified universal frequency list).
 - All 576 Speffz-style A–X letter pairs, each with a **short, distinct, one-word starter image**. The suggestions are curated and rule-based, not AI-generated on the fly, and they're meant to be replaced when you have a better idea.
