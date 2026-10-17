@@ -1,6 +1,8 @@
 # BLD Memo — a mobile-first 3BLD memory trainer
 
 ## Features
+- **Letter groups:** focus on one first-letter group (A through X; 24 pairs each) in Cards and Memo.
+- **Most encountered:** log pairs from actual cube memos in Stats to build a personal top-48 practice set (not an unverified universal frequency list).
 - All 576 Speffz-style A–X letter pairs, each with a **short, distinct, one-word starter image**. The suggestions are curated and rule-based, not AI-generated on the fly, and they're meant to be replaced when you have a better idea.
 - Row-by-row mobile dictionary and scrollable complete 24 × 24 matrix.
 - Edit any association and add optional visual detail.
