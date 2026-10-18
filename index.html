@@ -623,7 +623,7 @@
     const first={},final={};
     for(const [source,target] of [[raw.first,first],[raw.final,final]]){
       if(source&&typeof source==='object'&&!Array.isArray(source))
-        for(const p of batch)if(['good','hard','again'].includes(source[p]))target[p]=source[p];
+        for(const p of raw.pool)if(['good','hard','again'].includes(source[p]))target[p]=source[p];
     }
     return {version:1,filter:raw.filter,group:raw.group,pool:raw.pool.slice(),offset:raw.offset,
       batch,queue,retryQueue,current:batch.includes(raw.current)?raw.current:null,
