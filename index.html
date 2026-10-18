@@ -98,6 +98,20 @@
     .matrix-table td button strong { font-size:13px; }
     .matrix-table td button small { max-width:62px; font-size:9px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .matrix-table td button.changed { background:#252343; }
+    .session-head { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;margin:6px 0 12px;color:var(--soft);font-size:12px;font-weight:700; }
+    .session-meter { height:9px;background:#242c41;border-radius:30px;overflow:hidden;margin:0 0 15px; }
+    .session-meter span { display:block;background:var(--accent);height:100%;border-radius:30px;transition:width .2s; }
+    .session-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:20px 0; }
+    .session-word { background:#1b2340;border:1px solid #394260;border-radius:13px;padding:15px 8px;text-align:center;color:var(--text);min-width:0; }
+    .session-word strong { display:block;font-size:22px;letter-spacing:-1px; }
+    .session-word span { display:block;color:var(--accent2);font-size:12px;overflow-wrap:anywhere;margin-top:6px; }
+    .session-word:hover { background:#282d4c; }
+    .session-panel { background:#171e35;border:1px solid var(--line);border-radius:15px;padding:17px;margin:15px 0;line-height:1.5; }
+    .session-panel h4 { font-size:17px;margin:0 0 8px; }
+    .session-panel p { margin:8px 0;color:var(--soft);font-size:13px; }
+    .session-summary { display:flex;gap:9px;flex-wrap:wrap;margin:15px 0; }
+    .session-summary span { background:#252d44;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--soft);font-weight:700; }
+    .session-summary strong { color:var(--text); }
     .practice-area { max-width:670px; margin:0 auto; }
     .flashcard { min-height:300px; border-radius:22px; border:1px solid #3a3b65; background:radial-gradient(circle at top right,rgba(153,139,255,.18),transparent 70%),linear-gradient(140deg,#1e2544,#171d34); display:flex; flex-direction:column; align-items:center; justify-content:center; padding:30px 24px; text-align:center; margin:9px 0 17px; }
     .flashcard.reveal-card { width:100%; color:inherit; font:inherit; cursor:pointer; appearance:none; -webkit-appearance:none; touch-action:manipulation; }
@@ -230,9 +244,9 @@
     return `${ACTORS[a]} ${VERBS[(a*7+b*5)%VERBS.length]} ${OBJECTS[b]}`;
   }
   const STORAGE='bld-memo-v1';
-  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all'}};}
+  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all',cardMode:'guided'},cardSession:null};}
   function load(){try{const s=JSON.parse(localStorage.getItem(STORAGE));if(s&&s.version===1&&s.custom&&s.progress)return {...fresh(),...s,settings:{...fresh().settings,...s.settings}};}catch(e){}return fresh();}
-  let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter=state.settings.matrixFilter||'all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
+  let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter=state.settings.matrixFilter||'all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',cardMode=state.settings.cardMode||'guided',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
   const $=(q,root=document)=>root.querySelector(q);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const valid=p=>typeof p==='string'&&p.length===2&&[...p].every(c=>ABC.includes(c));
@@ -375,28 +389,149 @@
   $('#editDialog').addEventListener('close',()=>{editing=null;});
   $('#editForm').addEventListener('submit',e=>{e.preventDefault();if(!editing)return;let p=editing,img=$('#imageInput').value.trim(),description=$('#noteInput').value.trim();if(!img){$('#imageInput').focus();return;}if(img===suggestion(p)&&!description)delete state.custom[p];else state.custom[p]={image:img,note:description};save();closeEditor();render();toast(`${p} association saved`);});
   $('#restoreBtn').addEventListener('click',()=>{if(!editing)return;let p=editing;delete state.custom[p];save();closeEditor();render();toast(`${p} restored to starter image`);});
+
   function weightedCard(){
     let eligible=practicePool(flashFilter);
     if(!eligible.length)return null;
     let recent=flash?.pair;
     let candidates=eligible.filter(p=>p!==recent);if(!candidates.length)candidates=eligible;
-    let weights=candidates.map(p=>{let s=stat(p),now=Date.now();if(!s.seen)return 3; if(s.due&&s.due<=now)return Math.max(2,7-s.streak);if(s.streak>=3)return .35;return Math.max(.5,4-s.streak);});
+    let weights=candidates.map(p=>{let s=stat(p),now=Date.now();if(!s.seen)return 3;if(s.due&&s.due<=now)return Math.max(2,7-s.streak);if(s.streak>=3)return .35;return Math.max(.5,4-s.streak);});
     let total=weights.reduce((a,b)=>a+b,0),random=Math.random()*total;
     for(let i=0;i<candidates.length;i++){random-=weights[i];if(random<=0)return candidates[i];}return candidates.at(-1);
   }
   function newFlash(){let p=weightedCard();flash=p?{pair:p,revealed:false}:null;updateStats();renderCards();}
+  // Rate a card once. This is shared by unlimited and guided practice.
+  function recordFlashRating(p,rating){
+    const s={...stat(p)},now=Date.now();
+    s.seen++;s.last=now;s[rating]=(s[rating]||0)+1;
+    s.streak=rating==='good'?s.streak+1:rating==='hard'?Math.max(0,s.streak-1):0;
+    const days=rating==='good'?Math.min(45,Math.round(1.7**Math.min(s.streak,7))):rating==='hard'?1:1/1440;
+    s.due=now+days*86400000;state.progress[p]=s;
+    state.history.push({at:now,pair:p,rating});
+    if(state.history.length>2000)state.history=state.history.slice(-2000);
+  }
+  function sessionMatches(s){return s.filter===flashFilter&&s.group===practiceGroup;}
+  function sessionLabel(filter){return SIM_MODES.includes(filter)?SIM_LABELS[SIM_MODES.indexOf(filter)]:({all:'All pairs',edited:'My edited pairs',weak:'Needs practice',studied:'Previously studied',frequent:'Most encountered · my memo'})[filter]||filter;}
+  function sessionPairs(){
+    const eligible=practicePool(flashFilter);
+    if(!eligible.length)return [];
+    // Frequency sets keep their rank order; broader sets prioritize unpracticed associations.
+    if(SIM_MODES.includes(flashFilter)||flashFilter==='frequent'){
+      const ranked=flashFilter==='frequent'?frequentPairs():simSet(flashFilter)?(flashFilter==='simBoth48'
+        ?[...new Set(Array.from({length:48},(_,i)=>[simEdge[i]?.pair,simCorner[i]?.pair]).flat().filter(Boolean))]
+        :flashFilter.startsWith('simE')?simEdge.map(x=>x.pair):simCorner.map(x=>x.pair)):[];
+      const allowed=new Set(eligible);
+      return ranked.filter(p=>allowed.has(p)).slice(0,48);
+    }
+    return eligible.sort((a,b)=>{
+      const x=stat(a),y=stat(b),now=Date.now();
+      const score=s=>s.seen===0?100:s.due&&s.due<=now?60+Math.max(0,3-s.streak)*5:s.streak<3?30:0;
+      return score(y)-score(x)||a.localeCompare(b);
+    }).slice(0,24);
+  }
+  function startGuided(){
+    const pool=sessionPairs();
+    if(!pool.length){toast('No pairs in this practice set yet.');return;}
+    state.cardSession={version:1,filter:flashFilter,group:practiceGroup,pool,offset:0,batch:[],queue:[],retryQueue:[],current:null,phase:'preview',retrying:false,first:{},final:{},started:Date.now(),updated:Date.now()};
+    prepareGuidedBatch();toast('Study six images, then test your recall.');
+  }
+  function prepareGuidedBatch(){
+    const s=state.cardSession;if(!s)return;
+    if(s.offset>=s.pool.length){s.phase='finished';s.current=null;save();renderCards();return;}
+    s.batch=s.pool.slice(s.offset,s.offset+6);s.offset+=s.batch.length;
+    s.queue=s.batch.slice();s.retryQueue=[];s.retrying=false;s.current=null;s.phase='preview';s.updated=Date.now();
+    flash=null;save();renderCards();
+  }
+  function beginGuidedRecall(){
+    const s=state.cardSession;if(!s||s.phase!=='preview')return;
+    s.phase='active';s.current=s.queue.shift()||null;s.updated=Date.now();
+    flash={pair:s.current,revealed:false};save();renderCards();
+  }
+  function rateGuided(rating){
+    const s=state.cardSession;
+    if(!s||s.phase!=='active'||!s.current||!flash?.revealed)return;
+    const p=s.current;
+    recordFlashRating(p,rating);
+    if(!s.retrying){s.first[p]=rating;if(rating!=='good')s.retryQueue.push(p);}
+    s.final[p]=rating;
+    if(s.queue.length)s.current=s.queue.shift();
+    else if(s.retryQueue.length){s.retrying=true;s.current=s.retryQueue.shift();}
+    else {s.current=null;s.phase=s.offset>=s.pool.length?'finished':'between';}
+    s.updated=Date.now();flash=s.current?{pair:s.current,revealed:false}:null;
+    save();renderCards();
+  }
+  function pauseGuided(){
+    const s=state.cardSession;if(!s||s.phase==='paused'||s.phase==='finished')return;
+    s.resumePhase=s.phase;s.phase='paused';s.updated=Date.now();flash=null;save();renderCards();
+  }
+  function resumeGuided(){
+    const s=state.cardSession;if(!s)return;
+    if(!sessionMatches(s)){flashFilter=s.filter;practiceGroup=s.group;state.settings.flashFilter=flashFilter;state.settings.practiceGroup=practiceGroup;}
+    if(s.phase==='paused'){s.phase=['active','preview','between'].includes(s.resumePhase)?s.resumePhase:'preview';}
+    s.updated=Date.now();flash=null;save();renderCards();
+  }
+  function changeCardMode(mode){
+    if(mode!=='guided'&&mode!=='unlimited')return;
+    if(cardMode==='guided'&&mode==='unlimited'&&state.cardSession?.phase==='active')pauseGuided();
+    cardMode=mode;state.settings.cardMode=cardMode;flash=null;save();renderCards();
+  }
+  function replaceGuided(){
+    if(state.cardSession&&!confirm('Replace the saved study session? Existing flashcard ratings will still be saved.'))return;
+    state.cardSession=null;save();startGuided();
+  }
+  function guidedCardMarkup(){
+    const s=state.cardSession;
+    if(!s)return `<div class="session-panel"><h4>Start with six associations</h4><p>Preview six words, recall them once, then retry any you missed. After each group, the app will suggest a stopping point instead of cycling forever.</p><p>Try one or two groups now, then return later for better long-term recall.</p></div><div class="controls"><button class="btn primary" id="startGuided">Start 6-pair group</button></div>`;
+    if(!sessionMatches(s))return `<div class="session-panel"><h4>Saved session: ${esc(sessionLabel(s.filter))}</h4><p>It uses ${s.group==='all'?'all letter groups':'the '+s.group+' group'}. Resume it or start a session for your newly selected category. Your previous ratings remain saved either way.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume saved set</button><button class="btn" id="replaceGuided">Start selected set instead</button></div>`;
+    const reviewed=Object.keys(s.first).length,total=s.pool.length;
+    const batchNum=Math.ceil(s.offset/6),batchTotal=Math.ceil(total/6);
+    const good=s.batch.filter(p=>s.first[p]==='good').length;
+    const retried=s.batch.filter(p=>s.first[p]&&s.first[p]!=='good').length;
+    const stillHard=s.batch.filter(p=>s.final[p]&&s.final[p]!=='good').length;
+    const header=`<div class="session-head"><span>${esc(sessionLabel(s.filter))} · Group ${batchNum} of ${batchTotal}</span><span>${reviewed} / ${total} first reviews</span></div><div class="session-meter" role="progressbar" aria-valuenow="${reviewed}" aria-valuemin="0" aria-valuemax="${total}"><span style="width:${Math.min(100,Math.round(100*reviewed/total))}%"></span></div>`;
+    if(s.phase==='paused')return header+`<div class="session-panel"><h4>Saved for later</h4><p>You can stop now. Your exact place in this group and all ratings are saved on this device.</p><p>Resume when you feel fresh—later today or tomorrow is fine.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume where I left off</button><button class="btn" id="replaceGuided">New session</button></div>`;
+    if(s.phase==='preview')return header+`<div class="session-panel"><h4>First, learn these ${s.batch.length} images</h4><p>Look through them and change anything that doesn't click. Then test yourself without looking at the words.</p></div><div class="session-grid">${s.batch.map(p=>`<button class="session-word" data-session-edit="${p}" title="Edit ${p}"><strong>${p}</strong><span>${esc(assoc(p))}</span></button>`).join('')}</div><div class="controls"><button class="btn primary" id="beginGuided">I'm ready — test me</button><button class="btn" id="pauseGuided">Stop for now</button></div>`;
+    if(s.phase==='between'||s.phase==='finished'){
+      const finished=s.phase==='finished';
+      const summary=`<div class="session-summary"><span><strong>${good}</strong> first try</span><span><strong>${retried}</strong> reviewed again</span><span><strong>${stillHard}</strong> still tricky</span></div>`;
+      const textMsg=finished?'You finished this study set. Great stopping point! Come back later today or tomorrow to strengthen recall.':'Good stopping point! A short break helps more than endlessly drilling. Come back in 15–30 minutes or tomorrow, or continue with the next six.';
+      return header+`<div class="session-panel"><h4>${finished?'Study set complete!':`Group ${batchNum} complete!`}</h4><p>${textMsg}</p>${summary}</div><div class="controls">${finished?'<button class="btn primary" id="replaceGuided">Start another session</button>':'<button class="btn primary" id="nextGuided">Study the next six</button><button class="btn" id="pauseGuided">Stop and come back later</button>'}</div>`;
+    }
+    if(!s.current)return header+'<div class="empty">No active card. Use Resume or start another group.</div>';
+    if(!flash||flash.pair!==s.current)flash={pair:s.current,revealed:false};
+    const shown=s.batch.filter(p=>s.first[p]).length;
+    const label=s.retrying?'Second look — the ones you missed':`Pair ${shown+1} of ${s.batch.length}`;
+    return header+`<div class="practice-area"><p class="subhint">${label}</p><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${s.current}</div>${flash.revealed?`<div class="meaning">${esc(assoc(s.current))}</div>${note(s.current)?`<div class="note">${esc(note(s.current))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}<button class="btn" id="pauseGuided">Pause & save</button></div><p class="subhint">${s.retrying?'One more pass; tricky words are best revisited later.':'You will get a second chance on words rated Again or Hard.'}</p></div>`;
+  }
   function renderCards(){
-    if(!flash||!practicePool(flashFilter).includes(flash.pair)){let p=weightedCard();flash=p?{pair:p,revealed:false}:null;}
-    $('#app').innerHTML=`<div class="section-head"><div><h3>Instant image recall</h3><p>See the letters. Picture your association before revealing it.</p></div><span class="pill">Learn by recognition</span></div>
-    <div class="options-row"><label for="flashFilter">Practice</label><select id="flashFilter" class="mini-select"><option value="all" ${flashFilter==='all'?'selected':''}>All 576 pairs</option><option value="edited" ${flashFilter==='edited'?'selected':''}>My edited pairs</option><option value="weak" ${flashFilter==='weak'?'selected':''}>Needs practice</option><option value="studied" ${flashFilter==='studied'?'selected':''}>Previously studied</option><option value="frequent" ${flashFilter==='frequent'?'selected':''}>Most encountered (my memo)</option>${simOptions(flashFilter)}</select>${groupSelect()}<button class="btn sm" id="chooseNew">↻ New pair</button></div>
-    ${flash?`<div class="practice-area"><${flash.revealed?'div':'button type="button" id="revealFlash" aria-label="Reveal association for '+flash.pair+'"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${flash.pair}</div>${flash.revealed?`<div class="meaning">${esc(assoc(flash.pair))}</div>${note(flash.pair)?`<div class="note">${esc(note(flash.pair))}</div>`:''}`:'<div class="concealed">Tap this card to reveal the image.</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?`<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>`:''}</div><p class="subhint">${flash.revealed?'Rate your recall. Hard and Again bring the pair back sooner.':'Tap the card when you’re ready.'}</p></div>`:'<div class="empty">There are no cards in this set yet. If you selected Most encountered, log a real letter memo in Stats first. Otherwise, change your group or filter.</div>'}`;
-    $('#flashFilter').addEventListener('change',e=>{flashFilter=e.target.value;state.settings.flashFilter=flashFilter;save();flash=null;renderCards();});setupGroupSelect();$('#chooseNew').addEventListener('click',newFlash);
-    $('#revealFlash')?.addEventListener('click',()=>{flash.revealed=true;renderCards();});$('#editFlash')?.addEventListener('click',()=>openEditor(flash.pair));
+    const s=state.cardSession;
+    if(cardMode==='unlimited'&&(!flash||!practicePool(flashFilter).includes(flash.pair))){
+      let p=weightedCard();flash=p?{pair:p,revealed:false}:null;
+    }
+    const opts=`<div class="options-row"><label for="flashFilter">Practice</label><select id="flashFilter" class="mini-select"><option value="all" ${flashFilter==='all'?'selected':''}>All 576 pairs</option><option value="edited" ${flashFilter==='edited'?'selected':''}>My edited pairs</option><option value="weak" ${flashFilter==='weak'?'selected':''}>Needs practice</option><option value="studied" ${flashFilter==='studied'?'selected':''}>Previously studied</option><option value="frequent" ${flashFilter==='frequent'?'selected':''}>Most encountered (my memo)</option>${simOptions(flashFilter)}</select>${groupSelect()}</div>`;
+    const mode=`<div class="options-row" style="justify-content:space-between"><div class="seg" aria-label="Flashcard mode"><button data-cardmode="guided" class="${cardMode==='guided'?'active':''}" aria-pressed="${cardMode==='guided'}">Guided session</button><button data-cardmode="unlimited" class="${cardMode==='unlimited'?'active':''}" aria-pressed="${cardMode==='unlimited'}">Unlimited</button></div>${cardMode==='unlimited'?'<button class="btn sm" id="chooseNew">↻ New pair</button>':''}</div>`;
+    const endless=`${flash?`<div class="practice-area"><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${flash.pair}</div>${flash.revealed?`<div class="meaning">${esc(assoc(flash.pair))}</div>${note(flash.pair)?`<div class="note">${esc(note(flash.pair))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}</div><p class="subhint">Unlimited practice · Leave anytime. Your ratings are saved.</p></div>`:'<div class="empty">No cards match this set yet. Change the practice filter or group.</div>'}`;
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Instant image recall</h3><p>Small groups, meaningful breaks, better long-term recall.</p></div><span class="pill">Visual practice</span></div>${opts}${mode}${cardMode==='guided'?guidedCardMarkup():endless}`;
+    $('#flashFilter').addEventListener('change',e=>{flashFilter=e.target.value;state.settings.flashFilter=flashFilter;save();flash=null;renderCards();});
+    setupGroupSelect();
+    document.querySelectorAll('[data-cardmode]').forEach(b=>b.addEventListener('click',()=>changeCardMode(b.dataset.cardmode)));
+    $('#chooseNew')?.addEventListener('click',newFlash);
+    $('#startGuided')?.addEventListener('click',startGuided);
+    $('#beginGuided')?.addEventListener('click',beginGuidedRecall);
+    $('#nextGuided')?.addEventListener('click',prepareGuidedBatch);
+    $('#pauseGuided')?.addEventListener('click',pauseGuided);
+    $('#resumeGuided')?.addEventListener('click',resumeGuided);
+    $('#replaceGuided')?.addEventListener('click',replaceGuided);
+    document.querySelectorAll('[data-session-edit]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.sessionEdit)));
+    $('#revealFlash')?.addEventListener('click',()=>{flash.revealed=true;renderCards();});
+    $('#editFlash')?.addEventListener('click',()=>openEditor(cardMode==='guided'?s.current:flash.pair));
     document.querySelectorAll('[data-rate]').forEach(b=>b.addEventListener('click',()=>rateFlash(b.dataset.rate)));
   }
-  function rateFlash(rating){if(!flash)return;const p=flash.pair,s={...stat(p)},now=Date.now();s.seen++;s.last=now;s[rating]=(s[rating]||0)+1;s.streak=rating==='good'?s.streak+1:rating==='hard'?Math.max(0,s.streak-1):0;
-    const days=rating==='good'?Math.min(45,Math.round(1.7**Math.min(s.streak,7))):rating==='hard'?1:1/1440;
-    s.due=now+days*86400000;state.progress[p]=s;state.history.push({at:now,pair:p,rating});if(state.history.length>2000)state.history=state.history.slice(-2000);save();newFlash();}
+  function rateFlash(rating){
+    if(cardMode==='guided'){rateGuided(rating);return;}
+    if(!flash||!flash.revealed)return;
+    recordFlashRating(flash.pair,rating);save();newFlash();
+  }
   function drawSequence(){let pool=practicePool(seqFilter,seqKnownOnly);if(pool.length<seqLength){toast(`Only ${pool.length} matching pairs. Reduce sequence length or widen your practice set.`);return;}
     const selected=[];for(let k=0;k<seqLength;k++){const i=Math.floor(Math.random()*pool.length);selected.push(pool.splice(i,1)[0]);}sequence={items:selected,phase:'study',answers:[],count:0};renderSequence();}
   function renderSequence(){
