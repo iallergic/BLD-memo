@@ -244,7 +244,7 @@
     return `${ACTORS[a]} ${VERBS[(a*7+b*5)%VERBS.length]} ${OBJECTS[b]}`;
   }
   const STORAGE='bld-memo-v1';
-  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all',cardMode:'guided'},cardSession:null};}
+  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all',cardMode:'guided'},cardSession:null,cardDaily:null};}
   function load(){try{const s=JSON.parse(localStorage.getItem(STORAGE));if(s&&s.version===1&&s.custom&&s.progress)return {...fresh(),...s,settings:{...fresh().settings,...s.settings}};}catch(e){}return fresh();}
   let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter=state.settings.matrixFilter||'all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',cardMode=state.settings.cardMode||'guided',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
   const $=(q,root=document)=>root.querySelector(q);
@@ -405,7 +405,9 @@
     const s={...stat(p)},now=Date.now();
     s.seen++;s.last=now;s[rating]=(s[rating]||0)+1;
     s.streak=rating==='good'?s.streak+1:rating==='hard'?Math.max(0,s.streak-1):0;
-    const days=rating==='good'?Math.min(45,Math.round(1.7**Math.min(s.streak,7))):rating==='hard'?1:1/1440;
+    // Retention intervals are approximate; getting a pair right after a miss is capped separately.
+    const intervals=[0,1,3,7,14,30,45];
+    const days=rating==='good'?intervals[Math.min(s.streak,6)]:rating==='hard'?1:10/1440;
     s.due=now+days*86400000;state.progress[p]=s;
     state.history.push({at:now,pair:p,rating});
     if(state.history.length>2000)state.history=state.history.slice(-2000);
@@ -421,7 +423,7 @@
         ?[...new Set(Array.from({length:48},(_,i)=>[simEdge[i]?.pair,simCorner[i]?.pair]).flat().filter(Boolean))]
         :flashFilter.startsWith('simE')?simEdge.map(x=>x.pair):simCorner.map(x=>x.pair)):[];
       const allowed=new Set(eligible);
-      return ranked.filter(p=>allowed.has(p)).slice(0,48);
+      return ranked.filter(p=>allowed.has(p)).slice(0,flashFilter==='simBoth48'?92:48);
     }
     return eligible.sort((a,b)=>{
       const x=stat(a),y=stat(b),now=Date.now();
@@ -429,18 +431,52 @@
       return score(y)-score(x)||a.localeCompare(b);
     }).slice(0,24);
   }
+  function todayKey(){
+    const date=new Date(Date.now()),pad=n=>String(n).padStart(2,'0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+  }
+  function cardDaily(){
+    const day=todayKey();
+    if(!state.cardDaily||state.cardDaily.day!==day)state.cardDaily={day,newCount:0,reviewCount:0};
+    return state.cardDaily;
+  }
+  function guidedQueues(s){
+    if(!s)return {due:[],fresh:[],nextDue:null};
+    const now=Date.now();
+    const due=s.pool.filter(p=>stat(p).seen>0&&(!stat(p).due||stat(p).due<=now))
+      .sort((a,b)=>(stat(a).due||0)-(stat(b).due||0));
+    const fresh=s.pool.filter(p=>stat(p).seen===0);
+    const future=s.pool.filter(p=>stat(p).seen>0&&stat(p).due>now).map(p=>stat(p).due);
+    return {due,fresh,nextDue:future.length?Math.min(...future):null};
+  }
+  function nextDuePhrase(timestamp){
+    if(!timestamp)return '';
+    const minutes=Math.max(1,Math.ceil((timestamp-Date.now())/60000));
+    if(minutes<60)return `Next review in about ${minutes} minute${minutes===1?'':'s'}.`;
+    if(minutes<1440)return `Next review in about ${Math.ceil(minutes/60)} hour${Math.ceil(minutes/60)===1?'':'s'}.`;
+    const days=Math.ceil(minutes/1440);
+    return `Next review in about ${days} day${days===1?'':'s'}.`;
+  }
   function startGuided(){
     const pool=sessionPairs();
     if(!pool.length){toast('No pairs in this practice set yet.');return;}
-    state.cardSession={version:1,filter:flashFilter,group:practiceGroup,pool,offset:0,batch:[],queue:[],retryQueue:[],current:null,phase:'preview',retrying:false,first:{},final:{},started:Date.now(),updated:Date.now()};
-    prepareGuidedBatch();toast('Study six images, then test your recall.');
+    state.cardSession={version:1,filter:flashFilter,group:practiceGroup,pool,offset:0,batch:[],batchType:'new',queue:[],retryQueue:[],current:null,phase:'preview',retrying:false,first:{},final:{},started:Date.now(),updated:Date.now()};
+    prepareGuidedBatch();
   }
   function prepareGuidedBatch(){
-    const s=state.cardSession;if(!s)return;
-    if(s.offset>=s.pool.length){s.phase='finished';s.current=null;save();renderCards();return;}
-    s.batch=s.pool.slice(s.offset,s.offset+6);s.offset+=s.batch.length;
-    s.queue=s.batch.slice();s.retryQueue=[];s.retrying=false;s.current=null;s.phase='preview';s.updated=Date.now();
-    flash=null;save();renderCards();
+    const s=state.cardSession;if(!s||!sessionMatches(s))return;
+    const {due,fresh}=guidedQueues(s);
+    const type=due.length?'review':'new',next=due.length?due:fresh;
+    if(!next.length){
+      s.phase='finished';s.current=null;s.batch=[];s.updated=Date.now();flash=null;save();renderCards();return;
+    }
+    s.batchType=type;s.batch=next.slice(0,6);
+    if(type==='new')s.offset=Math.min(s.pool.length,s.offset+s.batch.length);
+    s.queue=s.batch.slice();s.retryQueue=[];s.first={};s.final={};s.retrying=false;
+    s.current=type==='review'?s.queue.shift():null;
+    s.phase=type==='review'?'active':'preview';s.updated=Date.now();
+    flash=s.current?{pair:s.current,revealed:false}:null;
+    save();renderCards();
   }
   function beginGuidedRecall(){
     const s=state.cardSession;if(!s||s.phase!=='preview')return;
@@ -451,12 +487,28 @@
     const s=state.cardSession;
     if(!s||s.phase!=='active'||!s.current||!flash?.revealed)return;
     const p=s.current;
+    const firstAttempt=!s.retrying,wasNew=stat(p).seen===0;
     recordFlashRating(p,rating);
-    if(!s.retrying){s.first[p]=rating;if(rating!=='good')s.retryQueue.push(p);}
+    if(firstAttempt){
+      s.first[p]=rating;
+      if(rating!=='good')s.retryQueue.push(p);
+      const daily=cardDaily();
+      if(wasNew)daily.newCount++;
+      else daily.reviewCount++;
+    } else if(s.first[p]!=='good'){
+      // Recognizing a word right after retrying is not yet durable recall.
+      const progress=state.progress[p];
+      progress.streak=Math.min(progress.streak,1);
+      progress.due=Math.min(progress.due,Date.now()+86400000);
+    }
     s.final[p]=rating;
     if(s.queue.length)s.current=s.queue.shift();
     else if(s.retryQueue.length){s.retrying=true;s.current=s.retryQueue.shift();}
-    else {s.current=null;s.phase=s.offset>=s.pool.length?'finished':'between';}
+    else {
+      s.current=null;
+      const remaining=guidedQueues(s);
+      s.phase=remaining.due.length||remaining.fresh.length?'between':'finished';
+    }
     s.updated=Date.now();flash=s.current?{pair:s.current,revealed:false}:null;
     save();renderCards();
   }
@@ -480,28 +532,44 @@
     state.cardSession=null;save();startGuided();
   }
   function guidedCardMarkup(){
-    const s=state.cardSession;
-    if(!s)return `<div class="session-panel"><h4>Start with six associations</h4><p>Preview six words, recall them once, then retry any you missed. After each group, the app will suggest a stopping point instead of cycling forever.</p><p>Try one or two groups now, then return later for better long-term recall.</p></div><div class="controls"><button class="btn primary" id="startGuided">Start 6-pair group</button></div>`;
-    if(!sessionMatches(s))return `<div class="session-panel"><h4>Saved session: ${esc(sessionLabel(s.filter))}</h4><p>It uses ${s.group==='all'?'all letter groups':'the '+s.group+' group'}. Resume it or start a session for your newly selected category. Your previous ratings remain saved either way.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume saved set</button><button class="btn" id="replaceGuided">Start selected set instead</button></div>`;
-    const reviewed=Object.keys(s.first).length,total=s.pool.length;
-    const batchNum=Math.ceil(s.offset/6),batchTotal=Math.ceil(total/6);
+    const s=state.cardSession,daily=cardDaily();
+    if(!s){
+      const pool=sessionPairs(),queues=guidedQueues({pool});
+      const canStart=queues.due.length||queues.fresh.length;
+      const description=queues.due.length
+        ?`${queues.due.length} due for review. Try recalling these without previewing the words, then learn something new later.`
+        :queues.fresh.length
+          ?`Nothing due yet. Learn six new associations, or fewer if the set is smaller.`
+          :`You're all caught up in this set. ${nextDuePhrase(queues.nextDue)} Come back later or pick another category.`;
+      return `<div class="session-panel"><h4>${queues.due.length?'Reviews come first':queues.fresh.length?'Ready for your next six?':'All caught up!'}</h4><p>${description}</p><p>New today: ${daily.newCount} · Reviews today: ${daily.reviewCount}. Your progress remains saved between visits.</p></div><div class="controls">${canStart?`<button class="btn primary" id="startGuided">${queues.due.length?`Review ${Math.min(6,queues.due.length)} due`:`Learn ${Math.min(6,queues.fresh.length)} new`}</button>`:''}</div>`;
+    }
+    if(!sessionMatches(s))return `<div class="session-panel"><h4>Saved session: ${esc(sessionLabel(s.filter))}</h4><p>You've switched categories. Resume your existing study session, or start fresh with this selection. Previous ratings will be kept.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume saved set</button><button class="btn" id="replaceGuided">Start selected set instead</button></div>`;
+    const queues=guidedQueues(s);
+    const total=s.batch.length||6,reviewed=s.batch.filter(p=>s.first[p]).length;
     const good=s.batch.filter(p=>s.first[p]==='good').length;
     const retried=s.batch.filter(p=>s.first[p]&&s.first[p]!=='good').length;
     const stillHard=s.batch.filter(p=>s.final[p]&&s.final[p]!=='good').length;
-    const header=`<div class="session-head"><span>${esc(sessionLabel(s.filter))} · Group ${batchNum} of ${batchTotal}</span><span>${reviewed} / ${total} first reviews</span></div><div class="session-meter" role="progressbar" aria-valuenow="${reviewed}" aria-valuemin="0" aria-valuemax="${total}"><span style="width:${Math.min(100,Math.round(100*reviewed/total))}%"></span></div>`;
-    if(s.phase==='paused')return header+`<div class="session-panel"><h4>Saved for later</h4><p>You can stop now. Your exact place in this group and all ratings are saved on this device.</p><p>Resume when you feel fresh—later today or tomorrow is fine.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume where I left off</button><button class="btn" id="replaceGuided">New session</button></div>`;
-    if(s.phase==='preview')return header+`<div class="session-panel"><h4>First, learn these ${s.batch.length} images</h4><p>Look through them and change anything that doesn't click. Then test yourself without looking at the words.</p></div><div class="session-grid">${s.batch.map(p=>`<button class="session-word" data-session-edit="${p}" title="Edit ${p}"><strong>${p}</strong><span>${esc(assoc(p))}</span></button>`).join('')}</div><div class="controls"><button class="btn primary" id="beginGuided">I'm ready — test me</button><button class="btn" id="pauseGuided">Stop for now</button></div>`;
+    const kind=s.batchType==='review'?'Due review':'New associations';
+    const header=`<div class="session-head"><span>${esc(sessionLabel(s.filter))} · ${kind}</span><span>${reviewed} / ${total} pairs recalled</span></div><div class="session-meter" role="progressbar" aria-valuenow="${reviewed}" aria-valuemin="0" aria-valuemax="${total}"><span style="width:${Math.min(100,Math.round(100*reviewed/total))}%"></span></div>`;
+    if(s.phase==='paused')return header+`<div class="session-panel"><h4>Paused — your place is saved</h4><p>Feel free to stop. Resume later, and we'll continue where you left off.</p><p>You've learned ${daily.newCount} new pairs and reviewed ${daily.reviewCount} older pairs today.</p></div><div class="controls"><button class="btn primary" id="resumeGuided">Resume where I left off</button><button class="btn" id="replaceGuided">Start over with this set</button></div>`;
+    if(s.phase==='preview')return header+`<div class="session-panel"><h4>First, learn these ${s.batch.length} images</h4><p>Look through the associations. Change anything that doesn't click, then test your recall with the words hidden.</p></div><div class="session-grid">${s.batch.map(p=>`<button class="session-word" data-session-edit="${p}" title="Edit ${p}"><strong>${p}</strong><span>${esc(assoc(p))}</span></button>`).join('')}</div><div class="controls"><button class="btn primary" id="beginGuided">I'm ready — test me</button><button class="btn" id="pauseGuided">Stop for now</button></div>`;
     if(s.phase==='between'||s.phase==='finished'){
-      const finished=s.phase==='finished';
-      const summary=`<div class="session-summary"><span><strong>${good}</strong> first try</span><span><strong>${retried}</strong> reviewed again</span><span><strong>${stillHard}</strong> still tricky</span></div>`;
-      const textMsg=finished?'You finished this study set. Great stopping point! Come back later today or tomorrow to strengthen recall.':'Good stopping point! A short break helps more than endlessly drilling. Come back in 15–30 minutes or tomorrow, or continue with the next six.';
-      return header+`<div class="session-panel"><h4>${finished?'Study set complete!':`Group ${batchNum} complete!`}</h4><p>${textMsg}</p>${summary}</div><div class="controls">${finished?'<button class="btn primary" id="replaceGuided">Start another session</button>':'<button class="btn primary" id="nextGuided">Study the next six</button><button class="btn" id="pauseGuided">Stop and come back later</button>'}</div>`;
+      const allClear=!queues.due.length&&!queues.fresh.length;
+      const nextType=queues.due.length?'review':'new';
+      const count=nextType==='review'?queues.due.length:queues.fresh.length;
+      const nextButton=nextType==='review'?`Review ${Math.min(6,count)} due`:`Learn ${Math.min(6,count)} more`;
+      const summary=s.batch.length?`<div class="session-summary"><span><strong>${good}</strong> first try</span><span><strong>${retried}</strong> got a second look</span><span><strong>${stillHard}</strong> need more practice</span></div>`:'';
+      const conclusion=allClear
+        ?`Nothing else is due or new in this set right now. ${nextDuePhrase(queues.nextDue)}`
+        :queues.due.length
+          ?`There ${queues.due.length===1?'is':'are'} ${queues.due.length} more due review${queues.due.length===1?'':'s'}. You can continue, or take a break.`
+          :`You're caught up on due reviews. New pairs can wait until your next short session.`;
+      return header+`<div class="session-panel"><h4>${allClear?'All caught up — stop for now!':'Good stopping point — come back later'}</h4><p>${conclusion}</p>${summary}<p>Today: ${daily.newCount} new · ${daily.reviewCount} reviewed. ${daily.newCount>=6?'Six new pairs is plenty for today; the next group is entirely optional.':'Short sessions spread over days help the images stick.'}</p></div><div class="controls">${!allClear?`<button class="btn" id="nextGuided">${nextButton} (optional)</button><button class="btn primary" id="pauseGuided">Stop for now</button>`:`<button class="btn" id="nextGuided">Check for due reviews</button>`}</div>`;
     }
-    if(!s.current)return header+'<div class="empty">No active card. Use Resume or start another group.</div>';
+    if(!s.current)return header+'<div class="empty">No active pair. Resume or start a new group.</div>';
     if(!flash||flash.pair!==s.current)flash={pair:s.current,revealed:false};
-    const shown=s.batch.filter(p=>s.first[p]).length;
-    const label=s.retrying?'Second look — the ones you missed':`Pair ${shown+1} of ${s.batch.length}`;
-    return header+`<div class="practice-area"><p class="subhint">${label}</p><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${s.current}</div>${flash.revealed?`<div class="meaning">${esc(assoc(s.current))}</div>${note(s.current)?`<div class="note">${esc(note(s.current))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}<button class="btn" id="pauseGuided">Pause & save</button></div><p class="subhint">${s.retrying?'One more pass; tricky words are best revisited later.':'You will get a second chance on words rated Again or Hard.'}</p></div>`;
+    const label=s.retrying?'Second look — the pairs you missed':s.batchType==='review'?`Recall without preview · Pair ${reviewed+1} of ${s.batch.length}`:`New pair ${reviewed+1} of ${s.batch.length}`;
+    return header+`<div class="practice-area"><p class="subhint">${label}</p><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${s.current}</div>${flash.revealed?`<div class="meaning">${esc(assoc(s.current))}</div>${note(s.current)?`<div class="note">${esc(note(s.current))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}<button class="btn" id="pauseGuided">Pause & save</button></div><p class="subhint">${s.retrying?'One more look now; difficult images will return in a future session.':'Again and Hard get one extra try in this group.'}</p></div>`;
   }
   function renderCards(){
     const s=state.cardSession;
@@ -611,7 +679,7 @@
   }
   // Old backups have no guided session. New backups can safely restore a paused session.
   function importCardSession(raw){
-    if(!raw||raw.version!==1||!Array.isArray(raw.pool)||!raw.pool.length||raw.pool.length>48)return null;
+    if(!raw||raw.version!==1||!Array.isArray(raw.pool)||!raw.pool.length||raw.pool.length>92)return null;
     if(raw.pool.some(p=>!valid(p))||new Set(raw.pool).size!==raw.pool.length)return null;
     if(!Number.isInteger(raw.offset)||raw.offset<0||raw.offset>raw.pool.length)return null;
     if(!['preview','active','between','paused','finished'].includes(raw.phase))return null;
@@ -626,13 +694,16 @@
         for(const p of raw.pool)if(['good','hard','again'].includes(source[p]))target[p]=source[p];
     }
     return {version:1,filter:raw.filter,group:raw.group,pool:raw.pool.slice(),offset:raw.offset,
-      batch,queue,retryQueue,current:batch.includes(raw.current)?raw.current:null,
+      batch,queue,retryQueue,batchType:raw.batchType==='review'?'review':'new',current:batch.includes(raw.current)?raw.current:null,
       phase:raw.phase,resumePhase:['active','preview','between'].includes(raw.resumePhase)?raw.resumePhase:'preview',
       retrying:!!raw.retrying,first,final,started:Number.isFinite(raw.started)?raw.started:Date.now(),
       updated:Number.isFinite(raw.updated)?raw.updated:Date.now()};
   }
   function exportData(){const payload={...state,exportedAt:new Date().toISOString(),app:'BLD Memo'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download='bld-memo-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Backup exported');}
-  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided'};clean.cardSession=importCardSession(obj.cardSession);state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;filter=state.settings.matrixFilter;cardMode=state.settings.cardMode;save();flash=null;sequence=null;render();toast('Backup imported successfully');}catch(err){toast('Could not import: '+err.message);}});
+  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided'};clean.cardSession=importCardSession(obj.cardSession);
+    if(obj.cardDaily&&obj.cardDaily.day===todayKey())
+      clean.cardDaily={day:todayKey(),newCount:Math.max(0,Math.min(576,Math.floor(Number(obj.cardDaily.newCount)||0))),reviewCount:Math.max(0,Math.min(100000,Math.floor(Number(obj.cardDaily.reviewCount)||0)))};
+    state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;filter=state.settings.matrixFilter;cardMode=state.settings.cardMode;save();flash=null;sequence=null;render();toast('Backup imported successfully');}catch(err){toast('Could not import: '+err.message);}});
   function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';filter='all';cardMode='guided';search='';save();flash=null;sequence=null;render();toast('Local data reset');}}
   document.addEventListener('keydown',e=>{if($('#editDialog').open||tab!=='cards'||e.target.matches('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();if(flash&&!flash.revealed){flash.revealed=true;renderCards();}}else if(flash?.revealed&&['Digit1','Digit2','Digit3'].includes(e.code)){rateFlash(({Digit1:'again',Digit2:'hard',Digit3:'good'})[e.code]);}});
   render();
