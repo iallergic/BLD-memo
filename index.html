@@ -67,6 +67,11 @@
     .letter.active { color:#11132a; border-color:var(--accent); background:var(--accent); }
     .info-line { margin:-5px 0 14px; color:var(--muted); font-size:12px; }
     .cardgrid { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+    .study-item { min-width:0; display:flex; flex-direction:column; gap:5px; }
+    .study-item .paircard { width:100%; flex:1; }
+    .study-rank { padding-left:3px; color:var(--muted); font-size:11px; font-weight:750; }
+    .study-info { margin-bottom:16px; }
+    .study-info strong { color:var(--text); }
     .paircard { min-height:110px; background:#171f32; border:1px solid var(--line); padding:13px 11px; border-radius:14px; text-align:left; color:var(--text); display:flex; flex-direction:column; align-items:flex-start; gap:5px; position:relative; overflow:hidden; }
     .paircard:hover { background:#222b42; border-color:#655d95; }
     .paircard.edited { border-color:#646098; }
@@ -225,9 +230,9 @@
     return `${ACTORS[a]} ${VERBS[(a*7+b*5)%VERBS.length]} ${OBJECTS[b]}`;
   }
   const STORAGE='bld-memo-v1';
-  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all'}};}
+  function fresh(){return {version:1,custom:{},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all'}};}
   function load(){try{const s=JSON.parse(localStorage.getItem(STORAGE));if(s&&s.version===1&&s.custom&&s.progress)return {...fresh(),...s,settings:{...fresh().settings,...s.settings}};}catch(e){}return fresh();}
-  let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter='all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
+  let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter=state.settings.matrixFilter||'all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
   const $=(q,root=document)=>root.querySelector(q);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const valid=p=>typeof p==='string'&&p.length===2&&[...p].every(c=>ABC.includes(c));
@@ -298,24 +303,61 @@
   function pairCard(p){let s=stat(p),kind=zeroKind(p);
     return `<button class="paircard ${state.custom[p]?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 250k simulations':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
   }
+  // Matrix reading sets preserve frequency ranking instead of splitting cards by first letter.
+  const matrixHasReadingSet=()=>filter==='frequent'||SIM_MODES.includes(filter);
+  function matrixReadingPairs(){
+    if(filter==='frequent')return frequentPairs();
+    if(filter==='simE24')return simEdge.slice(0,24).map(x=>x.pair);
+    if(filter==='simE48')return simEdge.slice(0,48).map(x=>x.pair);
+    if(filter==='simC24')return simCorner.slice(0,24).map(x=>x.pair);
+    if(filter==='simC48')return simCorner.slice(0,48).map(x=>x.pair);
+    if(filter==='simBoth48'){
+      // Alternate event ranks; each letter pair has just one editable association.
+      const list=[],seen=new Set();
+      for(let i=0;i<48;i++){
+        for(const item of [simEdge[i],simCorner[i]]){
+          if(item&&!seen.has(item.pair)){seen.add(item.pair);list.push(item.pair);}
+        }
+      }
+      return list;
+    }
+    return [];
+  }
+  function matrixReadingTitle(){
+    if(filter==='frequent')return 'Most encountered · my memos';
+    const index=SIM_MODES.indexOf(filter);
+    return index>=0?SIM_LABELS[index]:'';
+  }
   function renderMatrix(){
     $('#app').innerHTML=`<div class="section-head"><div><h3>Your letter-pair matrix</h3><p>Tap any pair to replace its starter image with your own.</p></div><span class="pill">24 × 24 · 576 pairs</span></div>
-    <div class="toolbar"><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option></select></div>
+    <div class="toolbar"><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option><optgroup label="Your memo"><option value="frequent" ${filter==='frequent'?'selected':''}>Most encountered · my memos</option></optgroup>${simOptions(filter)}</select></div>
     <div class="matrix-note"><strong>From 250,000 simulated scrambles:</strong> ${zeroSummary().both} pairs were not observed in either memo, ${zeroSummary().edge} were not observed for edges, and ${zeroSummary().corner} were not observed for corners. <strong>0 E + C</strong> means neither event; <strong>0 edges</strong> or <strong>0 corners</strong> is event-specific. A zero count in this sample does not prove a pair is impossible.</div>
     <div id="matrixContent"></div>`;
     $('#pairSearch').addEventListener('input',e=>{search=e.target.value;renderMatrixContent();});
-    $('#pairFilter').addEventListener('change',e=>{filter=e.target.value;renderMatrixContent();});
+    $('#pairFilter').addEventListener('change',e=>{filter=e.target.value;state.settings.matrixFilter=filter;save();renderMatrixContent();});
     document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{matrixMode=b.dataset.mode;renderMatrix();}));
     renderMatrixContent();
   }
   function isVisible(p){let q=search.trim().toLowerCase();if(q&&!p.toLowerCase().includes(q)&&!assoc(p).toLowerCase().includes(q)&&!note(p).toLowerCase().includes(q))return false;let s=stat(p);
+    if(matrixHasReadingSet())return matrixReadingPairs().includes(p);
     if(filter==='zeroBoth')return zeroKind(p)==='both';
     if(filter==='zeroEdges')return wasObserved(p,'edge')===false;
     if(filter==='zeroCorners')return wasObserved(p,'corner')===false;
     return filter==='edited'?!!state.custom[p]:filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
   function renderMatrixContent(){
     const box=$('#matrixContent');if(!box)return;
-    if(matrixMode==='row'){
+    if(matrixMode==='row'&&matrixHasReadingSet()){
+      // Show the entire selected set as one scrollable study sheet.
+      const ranked=matrixReadingPairs(),visible=ranked.filter(isVisible);
+      const details=filter==='frequent'
+        ?'Based on letter pairs from the real cube memos you recorded in Stats.'
+        :filter==='simBoth48'
+          ?'Top 48 from each event, deduplicated and interleaved by event ranking.'
+          :'Ordered from most to least frequent in the simulated memo data.';
+      box.innerHTML=`<div class="matrix-note study-info"><strong>${esc(matrixReadingTitle())}</strong> · ${visible.length} of ${ranked.length} unique pairs<div>${details} Tap a pair to review or edit its association.</div></div>${visible.length
+        ?`<div class="cardgrid studygrid">${visible.map(p=>`<div class="study-item"><span class="study-rank">#${ranked.indexOf(p)+1}</span>${pairCard(p)}</div>`).join('')}</div>`
+        :`<div class="empty">${filter==='frequent'&&!ranked.length?'Log a real edge or corner memo in Stats to create this reading list.':'No pairs match your search. Clear the search field to see the full set.'}</div>`}`;
+    } else if(matrixMode==='row'){
       const all=PAIRS.filter(p=>p[0]===selectedRow&&isVisible(p));
       box.innerHTML=`<div class="letters" aria-label="First letter">${[...ABC].map(ch=>`<button class="letter ${selectedRow===ch?'active':''}" data-row="${ch}" aria-pressed="${selectedRow===ch}">${ch}</button>`).join('')}</div><div class="info-line">${all.length} pair${all.length===1?'':'s'} for ${selectedRow} · Tap to edit</div>${all.length?`<div class="cardgrid">${all.map(pairCard).join('')}</div>`:'<div class="empty">No pairs match this row and filter. Try another first letter or clear the search.</div>'}`;
       box.querySelectorAll('[data-row]').forEach(b=>b.addEventListener('click',()=>{selectedRow=b.dataset.row;renderMatrixContent();}));
@@ -433,8 +475,8 @@
     $('#logMemo').addEventListener('click',recordMemo);$('#undoMemo').addEventListener('click',undoMemo);$('#exportBtn').addEventListener('click',exportData);$('#importBtn').addEventListener('click',()=>$('#importInput').click());$('#resetBtn').addEventListener('click',resetData);document.querySelectorAll('[data-trouble]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.trouble)));
   }
   function exportData(){const payload={...state,exportedAt:new Date().toISOString(),app:'BLD Memo'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download='bld-memo-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Backup exported');}
-  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all'};state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;save();flash=null;sequence=null;render();toast('Backup imported successfully');}catch(err){toast('Could not import: '+err.message);}});
-  function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';save();flash=null;sequence=null;render();toast('Local data reset');}}
+  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all'};state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;filter=state.settings.matrixFilter;save();flash=null;sequence=null;render();toast('Backup imported successfully');}catch(err){toast('Could not import: '+err.message);}});
+  function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';filter='all';search='';save();flash=null;sequence=null;render();toast('Local data reset');}}
   document.addEventListener('keydown',e=>{if($('#editDialog').open||tab!=='cards'||e.target.matches('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();if(flash&&!flash.revealed){flash.revealed=true;renderCards();}}else if(flash?.revealed&&['Digit1','Digit2','Digit3'].includes(e.code)){rateFlash(({Digit1:'again',Digit2:'hard',Digit3:'good'})[e.code]);}});
   render();
   if('serviceWorker'in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
