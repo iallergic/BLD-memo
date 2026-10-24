@@ -1,4 +1,4 @@
-const CACHE='bld-memo-static-v12';
+const CACHE='bld-memo-static-v13';
 const FILES=['./','./index.html','./frequency-data.js','./learning-path.js','./manifest.webmanifest','./icon-180-dark.png','./icon-192-dark.png','./icon-512-dark.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));self.skipWaiting();});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('bld-memo-static-')&&k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});
