@@ -142,7 +142,7 @@ function create(ctx){
       +'<div class="progressbar"><span style="width:'+(100*p.position/576).toFixed(2)+'%"></span></div>'
       +'<p class="subhint" style="text-align:left;margin:0 0 12px">Coverage means one first attempt, not mastery · '+visited+' distinct pairs practiced across all modes.</p>'
       +'<div class="path-tiers">'+tiers+'</div>'
-      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. ' + (fullCounts?'Full counts cover all 576 pairs across '+ctx.sampleCount.toLocaleString()+' legal states. '+unobserved+' pairs were never observed; these are ranked last with alphabetical ties. Zero observations do not prove impossibility.':'Frequency counts are published for '+rankKnown+' distinct pairs. Remaining pairs use observed/not-observed grouping and alphabetical ties.') + '</p>';
+      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. ' + (fullCounts?'Full counts cover all 576 pairs across '+ctx.sampleCount.toLocaleString()+' traced scrambles. '+unobserved+' pairs were never observed; these are ranked last with alphabetical ties. Zero observations do not prove impossibility.':'Frequency counts are published for '+rankKnown+' distinct pairs. Remaining pairs use observed/not-observed grouping and alphabetical ties.') + '</p>';
     if(!s||s.phase==='complete'){
       const count=s?s.pairs.length:0;
       if(s)output+='<div class="session-panel"><h4>'+(s.kind==='new'?'Batch finished!':'Review finished!')+'</h4><p>'+count+' pairs tested · '+Object.values(s.first).filter(v=>v==='good').length+' immediate recalls · '+s.retry.length+' second looks.</p></div>';
