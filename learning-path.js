@@ -140,7 +140,7 @@ function create(ctx){
       +'<div class="progressbar"><span style="width:'+(100*p.position/576).toFixed(2)+'%"></span></div>'
       +'<p class="subhint" style="text-align:left;margin:0 0 12px">Coverage means one first attempt, not mastery · '+visited+' distinct pairs practiced across all modes.</p>'
       +'<div class="path-tiers">'+tiers+'</div>'
-      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. Exact frequency ranks are available for '+rankKnown+' pairs from the top 120 in each event; later pairs use observed/not-observed grouping and alphabetical ties, not exact measured frequencies.</p>';
+      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. Frequency counts are published for '+rankKnown+' distinct pairs across the top 120 in each event. Remaining pairs use observed/not-observed grouping and alphabetical ties; their exact relative frequencies are unknown.</p>';
     if(!s||s.phase==='complete'){
       const count=s?s.pairs.length:0;
       if(s)output+='<div class="session-panel"><h4>'+(s.kind==='new'?'Batch finished!':'Review finished!')+'</h4><p>'+count+' pairs tested · '+Object.values(s.first).filter(v=>v==='good').length+' immediate recalls · '+s.retry.length+' second looks.</p></div>';
