@@ -1,5 +1,13 @@
 # BLD Memo — a mobile-first 3BLD memory trainer
 
+## Google Sheets dictionary sync
+
+The Google Sheet is the master dictionary. The app reads `sheet-dictionary.json` from the same GitHub Pages site when it opens or when you tap **Refresh Sheet** (Matrix or Stats). A GitHub Actions workflow (`.github/workflows/sync-sheet.yml`) checks the spreadsheet hourly and updates the JSON only when one or more of the 576 associations change. There is also a manual **Run workflow** action in GitHub Actions.
+
+**One-time setup:** In the Google Sheet, select **Share → General access → Anyone with the link → Viewer → Done**. This is required because GitHub Actions cannot access the owner's private Google Drive credentials. Do not grant editing permission. The app's dictionary snapshot is already in this public repository, so dictionary words are public regardless of the original Sheet sharing.
+
+**Phone edits are never pushed to the Sheet.** Local overrides and practice progress stay in browser storage and take priority over refreshed Sheet words. Stats → Google Sheet shows the snapshot timestamp, differing pairs, and possible conflicts when a pair has been changed both locally and in the Sheet. **Export differences CSV** downloads the pair, Sheet value, app value, and conflict indicator for manual review. A full JSON backup still includes training history, overrides, and the last cached Sheet snapshot. Offline use falls back to the cached snapshot or bundled starter dictionary.
+
 ## Features
 - **Due-first guided learning (recommended for short daily sessions):** reviews that are due come first, with no word preview; when caught up, preview and learn up to six new associations. Failed/Hard pairs receive one extra in-session retrieval, then are scheduled again for later. Good recall uses expanding intervals of roughly 1, 3, 7, 14, 30 and 45 days; Hard returns in about a day and Again in about 10 minutes. These are simple adaptive intervals, not a validated optimization model. Sessions stop naturally after each group, suggest taking a break after six new pairs, show today's new/review counts, and save pause/return progress locally (including JSON backups). Unlimited cards remain optional.
 - **Combined 92-pair guided pool:** the Top 48 edge and corner ranking lists now expose all 92 unique pair associations in guided sessions, not only the first 48.
