@@ -321,7 +321,7 @@
   }
 
 
-  // Empirical Speffz memo pairs from 1,000,000 uniformly sampled legal cube states.
+  // Empirical Speffz memo pairs from 1,000,000 randomly generated 30-move scrambles.
   function simRank(event){
     const counts=window.BLD_REALISTIC?.[event+'Counts'];
     if(Array.isArray(counts)&&counts.length===576&&counts.every(n=>Number.isInteger(n)&&n>=0))
@@ -345,7 +345,7 @@
   const SIM_LABELS=['Top 24 · M2 edges','Top 24 · OP corners','Top 48 · M2 edges','Top 48 · OP corners','Top 48 each · combined'];
   function simOptions(selected){return '<optgroup label="Simulated 3BLD frequency">'+SIM_MODES.map((id,i)=>`<option value="${id}" ${selected===id?'selected':''}>${SIM_LABELS[i]}</option>`).join('')+'</optgroup>';}
 
-  // Full 576-pair observation flags from the SAME 1,000,000 legal states as the ranked dataset.
+  // Full 576-pair observation flags from the SAME 1,000,000 traced scrambles.
   // Each hexadecimal nibble maps to four pairs in A–X matrix order; 1 = seen, 0 = not observed.
   function wasObserved(p,event){
     const hex=window.BLD_REALISTIC?.[event==='edge'?'edgeSeenHex':'cornerSeenHex'];
@@ -386,7 +386,7 @@
   document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>setTab(el.dataset.tab)));
   function render(){updateStats();if(tab==='matrix')renderMatrix();else if(tab==='cards')renderCards();else if(tab==='sequence')renderSequence();else renderProgress();}
   function pairCard(p){let s=stat(p),kind=zeroKind(p);
-    return `<button class="paircard ${state.custom[p]?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m legal-state simulations':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
+    return `<button class="paircard ${state.custom[p]?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m traced scrambles':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
   }
   // Matrix reading sets preserve frequency ranking instead of splitting cards by first letter.
   const matrixHasReadingSet=()=>filter==='frequent'||SIM_MODES.includes(filter);
@@ -416,7 +416,7 @@
   function renderMatrix(){
     $('#app').innerHTML=`<div class="section-head"><div><h3>Your letter-pair matrix</h3><p>Tap any pair to replace its starter image with your own.</p></div><span class="pill">24 × 24 · 576 pairs</span></div>
     <div class="toolbar"><button class="btn sm" id="syncMatrixBtn" title="Check the latest published Google Sheet snapshot">↻ Refresh Sheet</button><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option><optgroup label="Your memo"><option value="frequent" ${filter==='frequent'?'selected':''}>Most encountered · my memos</option></optgroup>${simOptions(filter)}</select></div>
-    <div class="matrix-note"><strong>From 1,000,000 simulated legal cube states:</strong> ${zeroSummary().both} pairs were not observed in either memo, ${zeroSummary().edge} were not observed for edges, and ${zeroSummary().corner} were not observed for corners. <strong>0 E + C</strong> means neither event; <strong>0 edges</strong> or <strong>0 corners</strong> is event-specific. A zero count in this sample does not prove a pair is impossible.</div>
+    <div class="matrix-note"><strong>From 1,000,000 traced 30-move scrambles:</strong> ${zeroSummary().both} pairs were not observed in either memo, ${zeroSummary().edge} were not observed for edges, and ${zeroSummary().corner} were not observed for corners. <strong>0 E + C</strong> means neither event; <strong>0 edges</strong> or <strong>0 corners</strong> is event-specific. A zero count in this sample does not prove a pair is impossible.</div>
     <div id="matrixContent"></div>`;
     $('#syncMatrixBtn').addEventListener('click',()=>refreshSheet());
     $('#pairSearch').addEventListener('input',e=>{search=e.target.value;renderMatrixContent();});
@@ -721,7 +721,7 @@
       ).join('');
     };
     return '<div class="progressbox" style="grid-column:1/-1"><h4>3BLD memo-pair frequencies · simulated</h4>'
-      +'<p>Based on 1,000,000 uniformly sampled legal cube states with Speffz A–X, DF buffer (M2 edges), and ULB buffer (Old Pochmann corners). Alphabetical cycle breaks, corner twists, and edge flips are traced. The random states have matching permutation parity and valid orientation sums.</p>'
+      +'<p>Based on 1,000,000 randomly generated 30-move scrambles, applied move-by-move to solved cubes, then traced with Speffz A–X, DF (M2 edges), and ULB (Old Pochmann corners). Scrambles avoid repeating an axis on consecutive moves and uniformly choose quarter, half, or inverse turns. Cycle breaks are alphabetical. Random-move scrambles are not exactly uniform random-state scrambles.</p>'
       +'<p>Cards and Memo have Top 24, Top 48, and combined practice sets. Learning Path uses the full measured 576-pair distribution. Percentages below are the share of paired memo targets in that event, not the chance a pair occurs in one solve. Your own memo log is still separate.</p>'
       +'<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;margin-top:18px">'
       +'<div><h4>M2 edges · DF buffer</h4>'+row('edge')+'</div>'
