@@ -124,7 +124,19 @@
     .controls { display:flex; justify-content:center; flex-wrap:wrap; gap:9px; }
     .controls .btn { min-width:108px; }
     .subhint { color:var(--muted); font-size:12px; margin:17px 0 0; text-align:center; }
-    .options-row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0 0 14px; }
+    .path-tiers { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0 20px; }
+    .path-tier { background:#192238;border:1px solid var(--line);border-radius:13px;padding:13px;min-width:0; }
+    .path-tier.current { border-color:var(--accent);background:#27274a; }
+    .path-tier strong { display:block;font-size:13px; }
+    .path-tier small { display:block;color:var(--muted);font-size:11px;line-height:1.5;margin-top:4px; }
+    .path-tier .progressbar { margin:9px 0 0; }
+    .path-toolbar { display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:16px 0; }
+    .path-preview { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:14px 0; }
+    .path-preview button { min-width:0;background:#1c2541;border:1px solid var(--line);color:var(--text);border-radius:11px;padding:12px 7px;text-align:center; }
+    .path-preview button strong { display:block;font-size:16px; }
+    .path-preview button span { display:block;font-size:11px;color:var(--accent2);margin-top:5px;overflow-wrap:anywhere; }
+    @media(max-width:460px){ .path-tiers { grid-template-columns:repeat(2,minmax(0,1fr)); } .path-preview { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+    .options-row { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
     .options-row label { font-size:12px; font-weight:700; color:var(--soft); }
     .mini-select { width:auto; min-width:135px; padding:10px 13px; font-size:13px; }
     .sequence { display:flex; flex-wrap:wrap; justify-content:center; gap:11px; margin:24px auto; max-width:740px; }
@@ -205,6 +217,7 @@
   <input id="importInput" type="file" accept=".json,application/json" class="hide" aria-label="Import data backup">
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="./frequency-data.js"></script>
+  <script src="./learning-path.js"></script>
   <script>
   'use strict';
   const ABC='ABCDEFGHIJKLMNOPQRSTUVWX';
@@ -245,7 +258,7 @@
   }
   const STORAGE='bld-memo-v1';
   const SHEET_ID='1iqJ1xnxOh2Y08bA-2tgthbDx8WgPcSs1EEclXlh24kg';
-  function fresh(){return {version:1,custom:{},sheet:{pairs:{},updatedAt:''},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all',cardMode:'guided'},cardSession:null,cardDaily:null};}
+  function fresh(){return {version:1,custom:{},sheet:{pairs:{},updatedAt:''},progress:{},seqRuns:0,seqPerfect:0,history:[],frequency:{},memoLogs:[],settings:{practiceGroup:'all',flashFilter:'all',seqFilter:'all',matrixFilter:'all',cardMode:'guided',pathSize:24},cardSession:null,cardDaily:null,learningPath:{version:1,cycle:1,position:0,session:null}};}
   function load(){try{const s=JSON.parse(localStorage.getItem(STORAGE));if(s&&s.version===1&&s.custom&&s.progress)return {...fresh(),...s,settings:{...fresh().settings,...s.settings}};}catch(e){}return fresh();}
   let state=load(),tab='matrix',selectedRow='A',matrixMode='row',filter=state.settings.matrixFilter||'all',search='',editing=null,flash=null,flashFilter=state.settings.flashFilter||'all',cardMode=state.settings.cardMode||'guided',practiceGroup=state.settings.practiceGroup||'all',sequence=null,seqLength=4,seqKnownOnly=false,seqFilter=state.settings.seqFilter||'all';
   const $=(q,root=document)=>root.querySelector(q);
@@ -578,9 +591,9 @@
     s.updated=Date.now();flash=null;save();renderCards();
   }
   function changeCardMode(mode){
-    if(mode!=='guided'&&mode!=='unlimited')return;
-    if(cardMode==='guided'&&mode==='unlimited'&&state.cardSession?.phase==='active')pauseGuided();
-    cardMode=mode;state.settings.cardMode=cardMode;flash=null;save();renderCards();
+    if(!['guided','unlimited','path'].includes(mode))return;
+    if(cardMode==='guided'&&mode!=='guided'&&state.cardSession?.phase==='active')pauseGuided();
+    cardMode=mode;state.settings.cardMode=cardMode;flash=null;learningPath.hide();save();renderCards();
   }
   function replaceGuided(){
     if(state.cardSession&&!confirm('Replace the saved study session? Existing flashcard ratings will still be saved.'))return;
@@ -627,12 +640,13 @@
     return header+`<div class="practice-area"><p class="subhint">${label}</p><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${s.current}</div>${flash.revealed?`<div class="meaning">${esc(assoc(s.current))}</div>${note(s.current)?`<div class="note">${esc(note(s.current))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}<button class="btn" id="pauseGuided">Pause & save</button></div><p class="subhint">${s.retrying?'One more look now; difficult images will return in a future session.':'Again and Hard get one extra try in this group.'}</p></div>`;
   }
   function renderCards(){
+    if(cardMode==='path'){learningPath.render();return;}
     const s=state.cardSession;
     if(cardMode==='unlimited'&&(!flash||!practicePool(flashFilter).includes(flash.pair))){
       let p=weightedCard();flash=p?{pair:p,revealed:false}:null;
     }
     const opts=`<div class="options-row"><label for="flashFilter">Practice</label><select id="flashFilter" class="mini-select"><option value="all" ${flashFilter==='all'?'selected':''}>All 576 pairs</option><option value="edited" ${flashFilter==='edited'?'selected':''}>My edited pairs</option><option value="weak" ${flashFilter==='weak'?'selected':''}>Needs practice</option><option value="studied" ${flashFilter==='studied'?'selected':''}>Previously studied</option><option value="frequent" ${flashFilter==='frequent'?'selected':''}>Most encountered (my memo)</option>${simOptions(flashFilter)}</select>${groupSelect()}</div>`;
-    const mode=`<div class="options-row" style="justify-content:space-between"><div class="seg" aria-label="Flashcard mode"><button data-cardmode="guided" class="${cardMode==='guided'?'active':''}" aria-pressed="${cardMode==='guided'}">Guided session</button><button data-cardmode="unlimited" class="${cardMode==='unlimited'?'active':''}" aria-pressed="${cardMode==='unlimited'}">Unlimited</button></div>${cardMode==='unlimited'?'<button class="btn sm" id="chooseNew">↻ New pair</button>':''}</div>`;
+    const mode=`<div class="options-row" style="justify-content:space-between"><div class="seg" aria-label="Flashcard mode"><button data-cardmode="guided" class="${cardMode==='guided'?'active':''}" aria-pressed="${cardMode==='guided'}">Guided session</button><button data-cardmode="unlimited" class="${cardMode==='unlimited'?'active':''}" aria-pressed="${cardMode==='unlimited'}">Unlimited</button><button data-cardmode="path" class="${cardMode==='path'?'active':''}" aria-pressed="${cardMode==='path'}">Learning Path</button></div>${cardMode==='unlimited'?'<button class="btn sm" id="chooseNew">↻ New pair</button>':''}</div>`;
     const endless=`${flash?`<div class="practice-area"><${flash.revealed?'div':'button type="button" id="revealFlash"'} class="flashcard${flash.revealed?'':' reveal-card'}"><div class="micro">${flash.revealed?'Your visual association':'Picture this pair'}</div><div class="bigpair">${flash.pair}</div>${flash.revealed?`<div class="meaning">${esc(assoc(flash.pair))}</div>${note(flash.pair)?`<div class="note">${esc(note(flash.pair))}</div>`:''}`:'<div class="concealed">Tap to reveal the image</div>'}</${flash.revealed?'div':'button'}><div class="controls">${flash.revealed?'<button class="btn again" data-rate="again">↻ Again</button><button class="btn warn" data-rate="hard">◷ Hard</button><button class="btn good" data-rate="good">✓ Got it</button><button class="btn" id="editFlash">✎ Edit</button>':''}</div><p class="subhint">Unlimited practice · Leave anytime. Your ratings are saved.</p></div>`:'<div class="empty">No cards match this set yet. Change the practice filter or group.</div>'}`;
     $('#app').innerHTML=`<div class="section-head"><div><h3>Instant image recall</h3><p>Small groups, meaningful breaks, better long-term recall.</p></div><span class="pill">Visual practice</span></div>${opts}${mode}${cardMode==='guided'?guidedCardMarkup():endless}`;
     $('#flashFilter').addEventListener('change',e=>{flashFilter=e.target.value;state.settings.flashFilter=flashFilter;save();flash=null;renderCards();});
@@ -764,13 +778,21 @@
       updated:Number.isFinite(raw.updated)?raw.updated:Date.now()};
   }
   function exportData(){const payload={...state,exportedAt:new Date().toISOString(),app:'BLD Memo'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download='bld-memo-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Backup exported');}
-  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided'};clean.cardSession=importCardSession(obj.cardSession);
+  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited','path'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided',pathSize:[12,24,48].includes(+obj.settings?.pathSize)?+obj.settings.pathSize:24};clean.cardSession=importCardSession(obj.cardSession);clean.learningPath=window.BLDMemoPath.sanitize(obj.learningPath);
     if(obj.cardDaily&&obj.cardDaily.day===todayKey())
       clean.cardDaily={day:todayKey(),newCount:Math.max(0,Math.min(576,Math.floor(Number(obj.cardDaily.newCount)||0))),reviewCount:Math.max(0,Math.min(100000,Math.floor(Number(obj.cardDaily.reviewCount)||0)))};
     clean.sheet=validSheetSnapshot(obj.sheet)?obj.sheet:(validSheetSnapshot(state.sheet)?state.sheet:fresh().sheet);
     state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;filter=state.settings.matrixFilter;cardMode=state.settings.cardMode;save();flash=null;sequence=null;render();toast('Backup imported successfully');refreshSheet(true);}catch(err){toast('Could not import: '+err.message);}});
   function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';filter='all';cardMode='guided';search='';save();flash=null;sequence=null;render();toast('Local data reset');refreshSheet(true);}}
   document.addEventListener('keydown',e=>{if($('#editDialog').open||tab!=='cards'||e.target.matches('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();if(flash&&!flash.revealed){flash.revealed=true;renderCards();}}else if(flash?.revealed&&['Digit1','Digit2','Digit3'].includes(e.code)){rateFlash(({Digit1:'again',Digit2:'hard',Digit3:'good'})[e.code]);}});
+  const learningPath=window.BLDMemoPath.create({
+    pairs:PAIRS,simEdge,simCorner,
+    edgeTotal:window.BLD_REALISTIC?.edgeTotal,
+    cornerTotal:window.BLD_REALISTIC?.cornerTotal,
+    observed:wasObserved,getState:()=>state,stat,assoc,note,esc,save,toast,
+    renderCards:()=>renderCards(),recordRating:recordFlashRating,
+    openEditor:openEditor,changeMode:changeCardMode
+  });
   render();
   refreshSheet(true);
   if('serviceWorker'in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
