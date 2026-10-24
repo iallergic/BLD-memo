@@ -278,7 +278,7 @@
       if(!response.ok)throw Error('HTTP '+response.status);
       const snapshot=await response.json();
       if(!validSheetSnapshot(snapshot))throw Error('Invalid dictionary snapshot');
-      state.sheet={pairs:snapshot.pairs,updatedAt:snapshot.updatedAt||''};
+      state.sheet={spreadsheetId:SHEET_ID,pairs:snapshot.pairs,updatedAt:snapshot.updatedAt||''};
       save();
       sheetSyncStatus='Ready';
       if(tab==='matrix')renderMatrix();
