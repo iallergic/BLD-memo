@@ -42,6 +42,8 @@ function create(ctx){
   const observed=p=>Number(ctx.observed(p,'edge')===true)+Number(ctx.observed(p,'corner')===true);
   const order=ctx.pairs.slice().sort((a,b)=>score(b)-score(a)||observed(b)-observed(a)||a.localeCompare(b));
   const rankKnown=new Set([...edgeCounts.keys(),...cornerCounts.keys()]).size;
+  const fullCounts=ctx.simEdge.length===576&&ctx.simCorner.length===576;
+  const unobserved=order.filter(pair=>(edgeCounts.get(pair)||0)+(cornerCounts.get(pair)||0)===0).length;
   const rankIndex=new Map(order.map((p,i)=>[p,i]));
   let revealed=false;
   const state=()=>ctx.getState();
@@ -140,7 +142,7 @@ function create(ctx){
       +'<div class="progressbar"><span style="width:'+(100*p.position/576).toFixed(2)+'%"></span></div>'
       +'<p class="subhint" style="text-align:left;margin:0 0 12px">Coverage means one first attempt, not mastery · '+visited+' distinct pairs practiced across all modes.</p>'
       +'<div class="path-tiers">'+tiers+'</div>'
-      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. Frequency counts are published for '+rankKnown+' distinct pairs across the top 120 in each event. Remaining pairs use observed/not-observed grouping and alphabetical ties; their exact relative frequencies are unknown.</p>';
+      +'<p class="subhint" style="text-align:left;margin:0 0 15px">Edge and corner simulations count equally. ' + (fullCounts?'Full counts cover all 576 pairs across '+ctx.sampleCount.toLocaleString()+' legal states. '+unobserved+' pairs were never observed; these are ranked last with alphabetical ties. Zero observations do not prove impossibility.':'Frequency counts are published for '+rankKnown+' distinct pairs. Remaining pairs use observed/not-observed grouping and alphabetical ties.') + '</p>';
     if(!s||s.phase==='complete'){
       const count=s?s.pairs.length:0;
       if(s)output+='<div class="session-panel"><h4>'+(s.kind==='new'?'Batch finished!':'Review finished!')+'</h4><p>'+count+' pairs tested · '+Object.values(s.first).filter(v=>v==='good').length+' immediate recalls · '+s.retry.length+' second looks.</p></div>';
