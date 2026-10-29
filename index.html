@@ -681,6 +681,7 @@
     if(ceecMode&&window.BLDMemoCEEC){
       window.BLDMemoCEEC.render($('#app'),{
         get state(){return state;},save,toast,word:assoc,
+        edit:openEditor,
         showOriginal:()=>{ceecMode=false;renderSequence();}
       });
       return;
