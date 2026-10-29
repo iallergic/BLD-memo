@@ -218,6 +218,7 @@
   <div id="toast" role="status" aria-live="polite"></div>
   <script src="./frequency-data.js"></script>
   <script src="./learning-path.js"></script>
+  <script src="./ceec-trainer.js"></script>
   <script>
   'use strict';
   const ABC='ABCDEFGHIJKLMNOPQRSTUVWX';
@@ -675,12 +676,21 @@
   }
   function drawSequence(){let pool=practicePool(seqFilter,seqKnownOnly);if(pool.length<seqLength){toast(`Only ${pool.length} matching pairs. Reduce sequence length or widen your practice set.`);return;}
     const selected=[];for(let k=0;k<seqLength;k++){const i=Math.floor(Math.random()*pool.length);selected.push(pool.splice(i,1)[0]);}sequence={items:selected,phase:'study',answers:[],count:0};renderSequence();}
+  let ceecMode=true;
   function renderSequence(){
-    $('#app').innerHTML=`<div class="section-head"><div><h3>Build longer memo</h3><p>Study a chain of images, hide it, then type back its letters in order.</p></div><span class="pill">Visual sequencing</span></div>
+    if(ceecMode&&window.BLDMemoCEEC){
+      window.BLDMemoCEEC.render($('#app'),{
+        get state(){return state;},save,toast,word:assoc,
+        showOriginal:()=>{ceecMode=false;renderSequence();}
+      });
+      return;
+    }
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Build longer memo</h3><p>Study a chain of images, hide it, then type back its letters in order.</p></div><span class="pill">Visual sequencing</span></div><div class="controls" style="justify-content:flex-start;margin-bottom:16px"><button class="btn" id="ceecSwitch">CEEC trainer</button><button class="btn primary" disabled>Single sequence</button></div>
     <div class="options-row"><label for="seqLength">Pairs per sequence</label><select class="mini-select" id="seqLength">${[2,3,4,6,8,12].map(n=>`<option value="${n}" ${seqLength===n?'selected':''}>${n} pairs · ${n*2} letters</option>`).join('')}</select><label for="seqFilter">Practice set</label><select class="mini-select" id="seqFilter"><option value="all" ${seqFilter==='all'?'selected':''}>All pairs</option><option value="frequent" ${seqFilter==='frequent'?'selected':''}>Most encountered</option><option value="edited" ${seqFilter==='edited'?'selected':''}>My edits</option><option value="weak" ${seqFilter==='weak'?'selected':''}>Needs practice</option><option value="studied" ${seqFilter==='studied'?'selected':''}>Previously studied</option>${simOptions(seqFilter)}</select>${groupSelect()}<label style="display:flex;align-items:center;gap:8px"><input id="knownOnly" type="checkbox" style="width:17px;height:17px;accent-color:var(--accent);margin:0" ${seqKnownOnly?'checked':''}> Studied pairs only</label></div>
     ${!sequence?`<div class="flashcard" style="min-height:260px"><div class="micro">Ready for a memory challenge?</div><div class="bigpair" style="font-size:65px;letter-spacing:-3px">AB · CK · FR</div><div class="concealed">Your mental images become a story.</div></div><div class="controls"><button class="btn primary" id="startSeq">Generate sequence</button></div>`:
      `<div class="callout"><strong>${sequence.phase==='study'?'Memorize the images.':sequence.phase==='recall'?'Recall in order.':`${sequence.count} of ${sequence.items.length} correct.`}</strong> ${sequence.phase==='study'?'Create a little mental scene connecting each image, then hide the sequence.':sequence.phase==='recall'?'Enter each two-letter pair. The images stay hidden until you check.':sequence.count===sequence.items.length?'Perfect sequence! Try increasing the length.':'Review the misses and try another sequence.'}</div><div class="sequence">${sequence.items.map((p,i)=>{let stage=sequence.phase;let answer=sequence.answers[i]||'';let correct=answer.toUpperCase()===p;return `<div class="seqpair ${stage==='result'?(correct?'correct':'wrong'):''}">${stage==='study'?`<strong>${p}</strong><span>${esc(assoc(p))}</span>`:stage==='recall'?`<label for="seq-${i}" class="hide">Pair ${i+1}</label><input id="seq-${i}" data-seq-index="${i}" maxlength="2" autocapitalize="characters" autocomplete="off" spellcheck="false" inputmode="text" placeholder="··"><span>Pair ${i+1}</span>`:`<strong style="color:${correct?'var(--green)':'var(--red)'}">${esc(answer||'—')}</strong><div class="answer">${correct?'Correct':`Answer: ${p}`}</div><span>${esc(assoc(p))}</span>`}</div>`;}).join('')}</div><div class="controls">${sequence.phase==='study'?'<button class="btn primary" id="hideSeq">Hide & recall →</button>':sequence.phase==='recall'?'<button class="btn primary" id="checkSeq">Check recall</button>':'<button class="btn" id="studySeq">Study same sequence</button>'}<button class="btn" id="startSeq">↻ New sequence</button></div>`}
     <p class="subhint">Focus on one first-letter group or practice the pairs you've encountered in real cube memos. This is image recall, not sticker tracing.</p>`;
+    $('#ceecSwitch')?.addEventListener('click',()=>{ceecMode=true;renderSequence();});
     $('#seqLength').addEventListener('change',e=>{seqLength=+e.target.value;sequence=null;renderSequence();});$('#seqFilter').addEventListener('change',e=>{seqFilter=e.target.value;state.settings.seqFilter=seqFilter;save();sequence=null;renderSequence();});setupGroupSelect();$('#knownOnly').addEventListener('change',e=>{seqKnownOnly=e.target.checked;sequence=null;renderSequence();});
     $('#startSeq')?.addEventListener('click',drawSequence);
     $('#hideSeq')?.addEventListener('click',()=>{sequence.phase='recall';renderSequence();$('#seq-0')?.focus();});
