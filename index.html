@@ -292,12 +292,16 @@
       if(!response.ok)throw Error('HTTP '+response.status);
       const snapshot=await response.json();
       if(!validSheetSnapshot(snapshot))throw Error('Invalid dictionary snapshot');
+      const previousPublished=state.sheet?.updatedAt||'';
       state.sheet={spreadsheetId:SHEET_ID,pairs:snapshot.pairs,updatedAt:snapshot.updatedAt||''};
       save();
       sheetSyncStatus='Ready';
       if(tab==='matrix')renderMatrix();
       if(tab==='progress')renderProgress();
-      if(!quiet)toast('Sheet dictionary refreshed · '+sheetDiffs().length+' differences');
+      if(!quiet){
+        const stamp=snapshot.updatedAt?new Date(snapshot.updatedAt).toLocaleString():'unknown date';
+        toast((previousPublished===snapshot.updatedAt?'Already using published dictionary':'Published dictionary loaded')+' · '+stamp);
+      }
     }catch(error){
       sheetSyncStatus='Could not check · '+(validSheetSnapshot(state.sheet)?'using last saved copy':'using app defaults');
       if(tab==='progress')renderProgress();
@@ -416,7 +420,7 @@
   }
   function renderMatrix(){
     $('#app').innerHTML=`<div class="section-head"><div><h3>Your letter-pair matrix</h3><p>Tap any pair to replace its starter image with your own.</p></div><span class="pill">24 × 24 · 576 pairs</span></div>
-    <div class="toolbar"><button class="btn sm" id="syncMatrixBtn" title="Check the latest published Google Sheet snapshot">↻ Refresh Sheet</button><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option><optgroup label="Your memo"><option value="frequent" ${filter==='frequent'?'selected':''}>Most encountered · my memos</option></optgroup>${simOptions(filter)}</select></div>
+    <div class="toolbar"><button class="btn sm" id="syncMatrixBtn" title="Download the latest published snapshot; Google Sheets syncs approximately hourly">↻ Refresh Sheet</button><input id="pairSearch" type="search" placeholder="Find pair or image…" value="${esc(search)}" aria-label="Search pairs and associations"><div class="seg" aria-label="Dictionary display"><button data-mode="row" class="${matrixMode==='row'?'active':''}">Browse</button><button data-mode="full" class="${matrixMode==='full'?'active':''}">Full matrix</button></div><select id="pairFilter" class="mini-select" aria-label="Filter pairs"><option value="all" ${filter==='all'?'selected':''}>All pairs</option><option value="edited" ${filter==='edited'?'selected':''}>My edits</option><option value="new" ${filter==='new'?'selected':''}>Not practiced</option><option value="strong" ${filter==='strong'?'selected':''}>Strong recall</option><option value="zeroBoth" ${filter==='zeroBoth'?'selected':''}>0 observed · neither</option><option value="zeroEdges" ${filter==='zeroEdges'?'selected':''}>0 observed · edges</option><option value="zeroCorners" ${filter==='zeroCorners'?'selected':''}>0 observed · corners</option><optgroup label="Your memo"><option value="frequent" ${filter==='frequent'?'selected':''}>Most encountered · my memos</option></optgroup>${simOptions(filter)}</select></div>
     <div class="matrix-note"><strong>From 1,000,000 traced 30-move scrambles:</strong> ${zeroSummary().both} pairs were not observed in either memo, ${zeroSummary().edge} were not observed for edges, and ${zeroSummary().corner} were not observed for corners. <strong>0 E + C</strong> means neither event; <strong>0 edges</strong> or <strong>0 corners</strong> is event-specific. A zero count in this sample does not prove a pair is impossible.</div>
     <div id="matrixContent"></div>`;
     $('#syncMatrixBtn').addEventListener('click',()=>refreshSheet());
