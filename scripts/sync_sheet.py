@@ -14,7 +14,7 @@ from urllib.request import Request, urlopen
 
 LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWX"
 SHEET_ID = "1iqJ1xnxOh2Y08bA-2tgthbDx8WgPcSs1EEclXlh24kg"
-GID = "900428112"
+GID = "1960491637"
 CSV_URL = os.environ.get(
     "SHEET_CSV_URL",
     f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid={GID}",
@@ -36,7 +36,8 @@ def main():
     pairs = {}
     for index, first in enumerate(LETTERS, start=1):
         row = rows[index]
-        if len(row) < 25 or row[0] != first:
+        # Permit human-readable prefix notes in the row labels, e.g. "Q (CH)".
+        if len(row) < 25 or row[0].strip().split(" ", 1)[0] != first:
             raise ValueError(f"Unexpected or incomplete matrix row for {first}")
         for second, word in zip(LETTERS, row[1:25]):
             if not word.strip():
