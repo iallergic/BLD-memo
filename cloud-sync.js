@@ -49,8 +49,8 @@ function render(){
   actions.innerHTML=buttons;
   actions.querySelectorAll('button').forEach(b=>b.disabled=busy);
 }
-function markMeta(revision,dirty=false){
-  meta={uid:user.uid,rev:revision,dirty,paused:false};
+function markMeta(revision,dirty=false,content=uploadPayload()){
+  meta={uid:user.uid,rev:revision,dirty,paused:false,fingerprint:fingerprint(content)};
   writeMeta();
 }
 function userData(){
@@ -64,6 +64,13 @@ function userData(){
 function uploadPayload(){
   const {sheet,...userState}=api.getState();
   return JSON.stringify(userState);
+}
+function fingerprint(value){
+  // Detect edits made before cloud-sync.js finished loading or while offline.
+  // Content hash + length, not a security mechanism.
+  let hash=2166136261;
+  for(let i=0;i<value.length;i++){hash^=value.charCodeAt(i);hash=Math.imul(hash,16777619);}
+  return value.length+':'+(hash>>>0).toString(16);
 }
 async function loadRemote(){
   const docSnap=await getDocFromServer(documentRef);
@@ -101,7 +108,7 @@ async function pushCloud(expectedRevision,force=false){
       return revision;
     });
     const stillDirty=changeSerial!==started;
-    markMeta(next,stillDirty);
+    markMeta(next,stillDirty,payload);
     remote={revision:next,state:JSON.parse(payload)};
     notify('ready',stillDirty?'More changes pending':'Changes uploaded');
     if(stillDirty)scheduleUpload();
@@ -142,6 +149,10 @@ async function check(){
     remote=await loadRemote();
     if(meta?.uid===user.uid&&meta.paused){notify('paused');return;}
     if(!remote){notify('initial');return;}
+    if(meta?.uid===user.uid&&!meta.paused&&meta.fingerprint&&
+       fingerprint(uploadPayload())!==meta.fingerprint){
+      meta.dirty=true;writeMeta();
+    }
     if(!meta||meta.uid!==user.uid){
       if(userData())notify('choose');
       else pullCloud(true);
