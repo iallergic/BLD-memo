@@ -158,6 +158,11 @@
     .progress-meter { display:flex; justify-content:space-between; font-size:12px; color:var(--soft); }
     .trouble-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
     .trouble-list button { border-radius:8px; border:1px solid var(--line); background:#232943; color:var(--soft); padding:8px 12px; font-weight:800; font-size:12px; }
+    .cloud-sync-strip { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 15px; margin:0 0 15px; border:1px solid var(--line); border-radius:13px; background:#151c2e; }
+    .cloud-sync-strip strong { display:block; font-size:12px; color:var(--text); }
+    .cloud-sync-strip small { display:block; max-width:600px; color:var(--muted); font-size:11px; margin-top:3px; line-height:1.5; }
+    .cloud-sync-actions { display:flex; flex-wrap:wrap; gap:6px; }
+    .cloud-sync-actions .btn { min-width:0; padding:7px 10px; font-size:11px; }
     .footer { text-align:center; color:var(--muted); margin-top:24px; font-size:12px; line-height:1.6; }
     dialog { width:min(510px,calc(100vw - 22px)); max-height:min(90vh,840px); overflow:auto; padding:0; border-radius:22px; border:1px solid #4b5273; background:#181f33; color:var(--text); box-shadow:0 35px 120px #000b; }
     dialog::backdrop { background:rgba(2,4,13,.82); backdrop-filter:blur(5px); }
@@ -181,7 +186,7 @@
   <div class="wrap">
     <header class="top">
       <div class="brand"><div class="logo" aria-hidden="true">BL</div><div><h1>BLD Memo</h1><small>Memory training studio</small></div></div>
-      <div class="top-note"><span class="dot"></span> Private, on-device progress</div>
+      <div class="top-note"><span class="dot"></span> Local-first · optional private sync</div>
     </header>
     <section class="intro">
       <p class="eyebrow">3×3 blindfolded · Visual memo</p>
@@ -193,6 +198,7 @@
       <div class="stat"><span>Pairs practiced</span><strong id="practicedCount">0 <em>/ 576</em></strong></div>
       <div class="stat"><span>Strong recall</span><strong id="masteredCount">0 <em>pairs</em></strong></div>
     </section>
+    <section id="cloudSyncPanel" class="cloud-sync-strip" aria-live="polite"><div><strong id="cloudSyncStatus">Cloud sync unavailable until configured</strong><small id="cloudSyncHelp">All practice continues to work locally.</small></div><div class="cloud-sync-actions" id="cloudSyncActions"></div></section>
     <nav class="tabs" aria-label="App sections">
       <button class="tab active" data-tab="matrix" aria-current="page" aria-label="Dictionary">▦ &nbsp;Matrix</button>
       <button class="tab" data-tab="cards" aria-label="Flashcards">✦ &nbsp;Cards</button>
@@ -200,7 +206,7 @@
       <button class="tab" data-tab="progress" aria-label="Progress">◷ &nbsp;Stats</button>
     </nav>
     <main id="app" class="panel"></main>
-    <footer class="footer">Speffz-style A–X letter pairs · Saved locally on this device · No account needed</footer>
+    <footer class="footer">Speffz-style A–X letter pairs · Local-first · Google sign-in optional</footer>
   </div>
   <dialog id="editDialog" aria-labelledby="dialogTitle">
     <form method="dialog" id="editForm" class="dialog-inner">
@@ -219,6 +225,7 @@
   <script src="./frequency-data.js"></script>
   <script src="./learning-path.js"></script>
   <script src="./ceec-trainer.js"></script>
+  <script src="./firebase-config.js"></script>
   <script>
   'use strict';
   const ABC='ABCDEFGHIJKLMNOPQRSTUVWX';
@@ -314,7 +321,8 @@
       const previousPublished=state.sheet?.updatedAt||'';
       state.sheet={spreadsheetId:SHEET_ID,pairs:snapshot.pairs,updatedAt:snapshot.updatedAt||''};
       const cleared=clearMatchingSheetOverrides();
-      save();
+      // Clearing redundant overrides changes user data; a plain Sheet refresh does not.
+      save({sheetOnly:cleared===0});
       sheetSyncStatus='Ready'+(cleared?' · '+cleared+' matching override'+(cleared===1?'':'s')+' cleared':'');
       if(tab==='matrix')renderMatrix();
       if(tab==='progress')renderProgress();
@@ -403,7 +411,7 @@
   const groupSelect=()=>`<label for="practiceGroup">Letter group</label><select class="mini-select" id="practiceGroup"><option value="all" ${practiceGroup==='all'?'selected':''}>All groups</option>${[...ABC].map(ch=>`<option value="${ch}" ${practiceGroup===ch?'selected':''}>${ch} group · ${ch}A–${ch}X</option>`).join('')}</select>`;
   function setGroup(value){practiceGroup=(value==='all'||ABC.includes(value))?value:'all';state.settings.practiceGroup=practiceGroup;save();flash=null;sequence=null;render();}
   function setupGroupSelect(){$('#practiceGroup')?.addEventListener('change',e=>setGroup(e.target.value));}
-  function save(){try{localStorage.setItem(STORAGE,JSON.stringify(state));return true;}catch(e){toast('Storage unavailable. Export your data to avoid losing it.');return false;}}
+  function save({sheetOnly=false}={}){try{localStorage.setItem(STORAGE,JSON.stringify(state));if(!sheetOnly)window.BLDSync?.localChanged?.();return true;}catch(e){toast('Storage unavailable. Export your data to avoid losing it.');return false;}}
   function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600);}
   function counts(){const pp=PAIRS.filter(p=>stat(p).seen>0);return {edited:PAIRS.filter(hasWordOverride).length,practiced:pp.length,strong:pp.filter(p=>stat(p).streak>=3).length,reviewed:pp.reduce((a,p)=>a+stat(p).seen,0)};}
   function updateStats(){const c=counts();$('#editedCount').innerHTML=`${c.edited} <em>/ 576</em>`;$('#practicedCount').innerHTML=`${c.practiced} <em>/ 576</em>`;$('#masteredCount').innerHTML=`${c.strong} <em>pairs</em>`;}
@@ -778,7 +786,7 @@
       ${top.length?`<div class="trouble-list" style="margin-top:14px">${top.slice(0,20).map(p=>`<button data-trouble="${p}" title="Edit ${p}">${p} · ${state.frequency[p]}×</button>`).join('')}</div>`:'<p>Your personal most-encountered category will appear after you log a real memo. You can start with a single letter group meanwhile.</p>'}
     </div>`;
 
-    $('#app').innerHTML=`<div class="section-head"><div><h3>Your training progress</h3><p>Everything is saved in this browser on this device.</p></div><span class="pill">No account · No tracking</span></div>
+    $('#app').innerHTML=`<div class="section-head"><div><h3>Your training progress</h3><p>Always saved on this device; optional private cloud sync can share progress across your devices.</p></div><span class="pill">Local-first</span></div>
     <div class="progress-grid">${renderSimStats()}${frequencyPanel}<div class="progressbox"><h4>Dictionary coverage</h4><div class="progress-meter"><span>Pairs practiced</span><strong>${c.practiced} / 576</strong></div><div class="progressbar"><span style="width:${(c.practiced/576*100).toFixed(2)}%"></span></div><div class="progress-meter"><span>Strong recall (3 consecutive “Got it”)</span><strong>${c.strong} / 576</strong></div><div class="progressbar"><span style="width:${(c.strong/576*100).toFixed(2)}%"></span></div><p>You're building a reliable visual vocabulary, one pair at a time.</p></div>
     <div class="progressbox"><h4>Practice overview</h4><div class="progress-meter"><span>Flashcard reviews</span><strong>${c.reviewed}</strong></div><div class="progress-meter" style="margin-top:13px"><span>“Got it” rate</span><strong>${acc}%</strong></div><div class="progress-meter" style="margin-top:13px"><span>Previously studied cards due</span><strong>${due}</strong></div><div class="progress-meter" style="margin-top:13px"><span>Perfect sequences</span><strong>${state.seqPerfect} / ${state.seqRuns}</strong></div><p>Again, Hard, and Got it ratings influence which flashcards come up next.</p></div>
     <div class="progressbox"><h4>Pairs that need extra attention</h4>${reviewed.length?`<div class="trouble-list">${reviewed.slice(0,14).map(p=>`<button data-trouble="${p}" title="Edit ${p}">${p}</button>`).join('')}</div><p>Tap a pair to adjust its mental image.</p>`:'<p>Once you review a few flashcards, your tougher pairs will show here.</p>'}</div>
@@ -791,7 +799,7 @@
       ${sheetDiffs().length>24?'<p>Showing the first 24 differences; CSV includes all.</p>':''}
       <p>CSV is for reviewing or manually applying edits to Google Sheets. Export does not write to the Sheet. If the Sheet snapshot is outdated, wait for the hourly refresh before exporting.</p>
     </div>
-    <div class="progressbox"><h4>Your data & backups</h4><p>Edits and practice history live in browser storage, not in the website files. Export periodically, especially before changing phones or clearing Safari data.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><button id="exportBtn" class="btn sm primary">↓ Export backup</button><button id="importBtn" class="btn sm">↑ Import backup</button><button id="resetBtn" class="btn sm again">Reset data</button></div></div></div>`;
+    <div class="progressbox"><h4>Your data & backups</h4><p>Edits and practice history stay in browser storage; when connected, an additional private cloud copy is maintained. Export backups occasionally, especially before changing phones or clearing Safari data.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:15px"><button id="exportBtn" class="btn sm primary">↓ Export backup</button><button id="importBtn" class="btn sm">↑ Import backup</button><button id="resetBtn" class="btn sm again">Reset data</button></div></div></div>`;
     $('#logMemo').addEventListener('click',recordMemo);$('#undoMemo').addEventListener('click',undoMemo);$('#refreshSheetBtn').addEventListener('click',()=>refreshSheet());$('#exportDiffBtn').addEventListener('click',exportSheetDiffs);$('#exportBtn').addEventListener('click',exportData);$('#importBtn').addEventListener('click',()=>$('#importInput').click());$('#resetBtn').addEventListener('click',resetData);document.querySelectorAll('[data-trouble]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.trouble)));
   }
   // Old backups have no guided session. New backups can safely restore a paused session.
@@ -822,7 +830,7 @@
       clean.cardDaily={day:todayKey(),newCount:Math.max(0,Math.min(576,Math.floor(Number(obj.cardDaily.newCount)||0))),reviewCount:Math.max(0,Math.min(100000,Math.floor(Number(obj.cardDaily.reviewCount)||0)))};
     clean.sheet=validSheetSnapshot(obj.sheet)?obj.sheet:(validSheetSnapshot(state.sheet)?state.sheet:fresh().sheet);
     state=clean;practiceGroup=state.settings.practiceGroup;flashFilter=state.settings.flashFilter;seqFilter=state.settings.seqFilter;filter=state.settings.matrixFilter;cardMode=state.settings.cardMode;save();flash=null;sequence=null;render();toast('Backup imported successfully');refreshSheet(true);}catch(err){toast('Could not import: '+err.message);}});
-  function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything?')){state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';filter='all';cardMode='guided';search='';save();flash=null;sequence=null;render();toast('Local data reset');refreshSheet(true);}}
+  function resetData(){if(confirm('Delete ALL custom associations and practice progress on this device? This cannot be undone unless you exported a backup.')&&confirm('Are you sure you want to erase everything? Cloud sync will be PAUSED, and the cloud copy will NOT be deleted.')){window.BLDSync?.pauseForReset?.();state=fresh();practiceGroup='all';flashFilter='all';seqFilter='all';filter='all';cardMode='guided';search='';save({sheetOnly:true});flash=null;sequence=null;render();toast('Local data reset; cloud preserved');refreshSheet(true);}}
   document.addEventListener('keydown',e=>{if($('#editDialog').open||tab!=='cards'||e.target.matches('input,textarea,select'))return;if(e.code==='Space'){e.preventDefault();if(flash&&!flash.revealed){flash.revealed=true;renderCards();}}else if(flash?.revealed&&['Digit1','Digit2','Digit3'].includes(e.code)){rateFlash(({Digit1:'again',Digit2:'hard',Digit3:'good'})[e.code]);}});
   const learningPath=window.BLDMemoPath.create({
     pairs:PAIRS,simEdge,simCorner,
@@ -833,9 +841,24 @@
     renderCards:()=>renderCards(),recordRating:recordFlashRating,
     openEditor:openEditor,changeMode:changeCardMode
   });
+  // Cloud sync imports only user progress; the published Sheet stays device-local.
+  window.BLD_SYNC_APP={
+    getState:()=>state,
+    applyRemote:incoming=>{
+      if(!incoming||incoming.version!==1||!incoming.custom||!incoming.progress||!incoming.settings)throw Error('Invalid cloud progress');
+      const localSheet=state.sheet;
+      state={...fresh(),...incoming,sheet:localSheet,settings:{...fresh().settings,...incoming.settings}};
+      practiceGroup=state.settings.practiceGroup||'all';flashFilter=state.settings.flashFilter||'all';seqFilter=state.settings.seqFilter||'all';filter=state.settings.matrixFilter||'all';cardMode=state.settings.cardMode||'guided';
+      flash=null;sequence=null;editing=null;
+      localStorage.setItem(STORAGE,JSON.stringify(state));
+      render();
+    },
+    exportBackup:()=>exportData()
+  };
   render();
   refreshSheet(true);
   if('serviceWorker'in navigator&&location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
   </script>
+  <script type="module" src="./cloud-sync.js"></script>
 </body>
 </html>
