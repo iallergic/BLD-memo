@@ -285,6 +285,24 @@
       conflict:!!(state.custom[p]?.base&&state.custom[p].base!==state.sheet.pairs[p])
     }));
   }
+  // If a Sheet update now matches a custom image exactly, the image is no longer
+  // an override. Keep a separate note-only entry when the user has memo notes.
+  // Never change nonmatching local associations.
+  function clearMatchingSheetOverrides(){
+    let cleared=0;
+    if(!validSheetSnapshot(state.sheet))return cleared;
+    for(const [pair, entry] of Object.entries(state.custom)){
+      if(!valid(pair)||!entry||typeof entry.image!=='string'||entry.image!==state.sheet.pairs[pair])continue;
+      const savedNote=typeof entry.note==='string'?entry.note:'';
+      if(savedNote){
+        state.custom[pair]={image:'',note:savedNote};
+      }else{
+        delete state.custom[pair];
+      }
+      cleared++;
+    }
+    return cleared;
+  }
   async function refreshSheet(quiet=false){
     sheetSyncStatus='Checking for updates…';
     try{
@@ -294,13 +312,14 @@
       if(!validSheetSnapshot(snapshot))throw Error('Invalid dictionary snapshot');
       const previousPublished=state.sheet?.updatedAt||'';
       state.sheet={spreadsheetId:SHEET_ID,pairs:snapshot.pairs,updatedAt:snapshot.updatedAt||''};
+      const cleared=clearMatchingSheetOverrides();
       save();
-      sheetSyncStatus='Ready';
+      sheetSyncStatus='Ready'+(cleared?' · '+cleared+' matching override'+(cleared===1?'':'s')+' cleared':'');
       if(tab==='matrix')renderMatrix();
       if(tab==='progress')renderProgress();
       if(!quiet){
         const stamp=snapshot.updatedAt?new Date(snapshot.updatedAt).toLocaleString():'unknown date';
-        toast((previousPublished===snapshot.updatedAt?'Already using published dictionary':'Published dictionary loaded')+' · '+stamp);
+        toast((previousPublished===snapshot.updatedAt?'Already using published dictionary':'Published dictionary loaded')+' · '+stamp+(cleared?' · '+cleared+' matching override'+(cleared===1?'':'s')+' cleared':''));
       }
     }catch(error){
       sheetSyncStatus='Could not check · '+(validSheetSnapshot(state.sheet)?'using last saved copy':'using app defaults');
@@ -763,7 +782,7 @@
     <div class="progressbox"><h4>Practice overview</h4><div class="progress-meter"><span>Flashcard reviews</span><strong>${c.reviewed}</strong></div><div class="progress-meter" style="margin-top:13px"><span>“Got it” rate</span><strong>${acc}%</strong></div><div class="progress-meter" style="margin-top:13px"><span>Previously studied cards due</span><strong>${due}</strong></div><div class="progress-meter" style="margin-top:13px"><span>Perfect sequences</span><strong>${state.seqPerfect} / ${state.seqRuns}</strong></div><p>Again, Hard, and Got it ratings influence which flashcards come up next.</p></div>
     <div class="progressbox"><h4>Pairs that need extra attention</h4>${reviewed.length?`<div class="trouble-list">${reviewed.slice(0,14).map(p=>`<button data-trouble="${p}" title="Edit ${p}">${p}</button>`).join('')}</div><p>Tap a pair to adjust its mental image.</p>`:'<p>Once you review a few flashcards, your tougher pairs will show here.</p>'}</div>
     <div class="progressbox" style="grid-column:1/-1"><h4>Google Sheet · one-way sync</h4>
-      <p>The spreadsheet is the master dictionary. This app checks the published snapshot when opened and whenever you refresh. GitHub updates that snapshot approximately hourly. Your local edits always win, even if the Sheet changes.</p>
+      <p>The spreadsheet is the master dictionary. This app checks the published snapshot when opened and whenever you refresh. GitHub updates that snapshot approximately hourly. Different local words always take priority. If the Sheet becomes exactly identical to a local word (including capitalization), the redundant override is cleared automatically; personal notes are kept.</p>
       <p><strong>Status:</strong> ${esc(sheetSyncStatus)} · <strong>Sheet snapshot:</strong> ${state.sheet?.updatedAt?esc(new Date(state.sheet.updatedAt).toLocaleString()):'Not loaded'}</p>
       <p><strong>${sheetDiffs().length} pair${sheetDiffs().length===1?'':'s'} differ</strong> from the last Sheet snapshot${sheetDiffs().some(d=>d.conflict)?' · '+sheetDiffs().filter(d=>d.conflict).length+' potential conflict(s)':''}.</p>
       <div class="controls" style="justify-content:flex-start;margin-top:12px"><button id="refreshSheetBtn" class="btn sm">↻ Refresh Sheet</button><button id="exportDiffBtn" class="btn sm primary" ${sheetDiffs().length?'':'disabled'}>↓ Export differences CSV</button></div>
@@ -797,7 +816,7 @@
       updated:Number.isFinite(raw.updated)?raw.updated:Date.now()};
   }
   function exportData(){const payload={...state,exportedAt:new Date().toISOString(),app:'BLD Memo'};const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);let a=document.createElement('a');a.href=url;a.download='bld-memo-backup-'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),10000);toast('Backup exported');}
-  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&v.image.trim())clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited','path'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided',pathSize:[12,24,48].includes(+obj.settings?.pathSize)?+obj.settings.pathSize:24};clean.cardSession=importCardSession(obj.cardSession);clean.learningPath=window.BLDMemoPath.sanitize(obj.learningPath);
+  $('#importInput').addEventListener('change',async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;try{let obj=JSON.parse(await f.text());if(obj?.version!==1||typeof obj.custom!=='object'||Array.isArray(obj.custom)||typeof obj.progress!=='object'||Array.isArray(obj.progress))throw Error('Not a BLD Memo v1 backup');if(!confirm('Import this backup? It will replace your current saved dictionary and progress.'))return;let clean=fresh();for(const [p,v] of Object.entries(obj.custom)){if(valid(p)&&v&&typeof v.image==='string'&&(v.image.trim()||(typeof v.note==='string'&&v.note))){clean.custom[p]={image:v.image.slice(0,160),note:typeof v.note==='string'?v.note.slice(0,380):''};if(typeof v.base==='string')clean.custom[p].base=v.base.slice(0,160);}}for(const [p,v] of Object.entries(obj.progress)){if(valid(p)&&v&&typeof v==='object'&&Number.isFinite(v.seen)){let s={};for(const k of ['seen','good','hard','again','streak','due','last'])s[k]=Number.isFinite(v[k])?Math.max(0,v[k]):0;clean.progress[p]=s;}}clean.seqRuns=Number.isFinite(obj.seqRuns)?Math.max(0,obj.seqRuns):0;clean.seqPerfect=Number.isFinite(obj.seqPerfect)?Math.max(0,obj.seqPerfect):0;clean.history=Array.isArray(obj.history)?obj.history.filter(h=>h&&valid(h.pair)&&['good','hard','again'].includes(h.rating)&&Number.isFinite(h.at)).slice(-2000):[];clean.frequency={};if(obj.frequency&&typeof obj.frequency==='object')for(const [p,n] of Object.entries(obj.frequency))if(valid(p)&&Number.isFinite(n)&&n>0)clean.frequency[p]=Math.min(1000000,Math.floor(n));clean.memoLogs=Array.isArray(obj.memoLogs)?obj.memoLogs.filter(m=>m&&Number.isFinite(m.at)&&Array.isArray(m.pairs)&&m.pairs.length<=60&&m.pairs.every(valid)).slice(-1000):[];clean.settings={practiceGroup:(obj.settings?.practiceGroup==='all'||ABC.includes(obj.settings?.practiceGroup))?obj.settings.practiceGroup:'all',flashFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.flashFilter)?obj.settings.flashFilter:'all',seqFilter:['all','edited','weak','studied','frequent',...SIM_MODES].includes(obj.settings?.seqFilter)?obj.settings.seqFilter:'all',matrixFilter:['all','edited','new','strong','zeroBoth','zeroEdges','zeroCorners','frequent',...SIM_MODES].includes(obj.settings?.matrixFilter)?obj.settings.matrixFilter:'all',cardMode:['guided','unlimited','path'].includes(obj.settings?.cardMode)?obj.settings.cardMode:'guided',pathSize:[12,24,48].includes(+obj.settings?.pathSize)?+obj.settings.pathSize:24};clean.cardSession=importCardSession(obj.cardSession);clean.learningPath=window.BLDMemoPath.sanitize(obj.learningPath);
     if(obj.cardDaily&&obj.cardDaily.day===todayKey())
       clean.cardDaily={day:todayKey(),newCount:Math.max(0,Math.min(576,Math.floor(Number(obj.cardDaily.newCount)||0))),reviewCount:Math.max(0,Math.min(100000,Math.floor(Number(obj.cardDaily.reviewCount)||0)))};
     clean.sheet=validSheetSnapshot(obj.sheet)?obj.sheet:(validSheetSnapshot(state.sheet)?state.sheet:fresh().sheet);
