@@ -268,6 +268,7 @@
   const sheetBase=p=>state.sheet?.pairs?.[p]||suggestion(p);
   const assoc=p=>state.custom[p]?.image||sheetBase(p);
   const note=p=>state.custom[p]?.note||'';
+  const hasWordOverride=p=>!!state.custom[p]?.image;
   const stat=p=>state.progress[p]||{seen:0,good:0,hard:0,again:0,streak:0,due:0};
 
   // The website reads a same-origin JSON snapshot generated from Google Sheets.
@@ -397,20 +398,20 @@
   function practicePool(f,studiedOnly=false){
     const frequent=f==='frequent'?new Set(frequentPairs()):null,simulation=simSet(f);
     return PAIRS.filter(p=>(practiceGroup==='all'||p[0]===practiceGroup)&&(!studiedOnly||stat(p).seen>0)
-      &&(simulation?simulation.has(p):f==='frequent'?frequent.has(p):f==='edited'?!!state.custom[p]:f==='weak'?stat(p).seen>0&&stat(p).streak<3:f==='studied'?stat(p).seen>0:true));
+      &&(simulation?simulation.has(p):f==='frequent'?frequent.has(p):f==='edited'?hasWordOverride(p):f==='weak'?stat(p).seen>0&&stat(p).streak<3:f==='studied'?stat(p).seen>0:true));
   }
   const groupSelect=()=>`<label for="practiceGroup">Letter group</label><select class="mini-select" id="practiceGroup"><option value="all" ${practiceGroup==='all'?'selected':''}>All groups</option>${[...ABC].map(ch=>`<option value="${ch}" ${practiceGroup===ch?'selected':''}>${ch} group · ${ch}A–${ch}X</option>`).join('')}</select>`;
   function setGroup(value){practiceGroup=(value==='all'||ABC.includes(value))?value:'all';state.settings.practiceGroup=practiceGroup;save();flash=null;sequence=null;render();}
   function setupGroupSelect(){$('#practiceGroup')?.addEventListener('change',e=>setGroup(e.target.value));}
   function save(){try{localStorage.setItem(STORAGE,JSON.stringify(state));return true;}catch(e){toast('Storage unavailable. Export your data to avoid losing it.');return false;}}
   function toast(message){const el=$('#toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),2600);}
-  function counts(){const pp=PAIRS.filter(p=>stat(p).seen>0);return {edited:Object.keys(state.custom).length,practiced:pp.length,strong:pp.filter(p=>stat(p).streak>=3).length,reviewed:pp.reduce((a,p)=>a+stat(p).seen,0)};}
+  function counts(){const pp=PAIRS.filter(p=>stat(p).seen>0);return {edited:PAIRS.filter(hasWordOverride).length,practiced:pp.length,strong:pp.filter(p=>stat(p).streak>=3).length,reviewed:pp.reduce((a,p)=>a+stat(p).seen,0)};}
   function updateStats(){const c=counts();$('#editedCount').innerHTML=`${c.edited} <em>/ 576</em>`;$('#practicedCount').innerHTML=`${c.practiced} <em>/ 576</em>`;$('#masteredCount').innerHTML=`${c.strong} <em>pairs</em>`;}
   function setTab(next){tab=next;document.querySelectorAll('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===next);b.setAttribute('aria-current',b.dataset.tab===next?'page':'false');});render();window.scrollTo({top:0,behavior:'instant'});}
   document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>setTab(el.dataset.tab)));
   function render(){updateStats();if(tab==='matrix')renderMatrix();else if(tab==='cards')renderCards();else if(tab==='sequence')renderSequence();else renderProgress();}
   function pairCard(p){let s=stat(p),kind=zeroKind(p);
-    return `<button class="paircard ${state.custom[p]?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m traced scrambles':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
+    return `<button class="paircard ${hasWordOverride(p)?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m traced scrambles':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
   }
   // Matrix reading sets preserve frequency ranking instead of splitting cards by first letter.
   const matrixHasReadingSet=()=>filter==='frequent'||SIM_MODES.includes(filter);
@@ -453,7 +454,7 @@
     if(filter==='zeroBoth')return zeroKind(p)==='both';
     if(filter==='zeroEdges')return wasObserved(p,'edge')===false;
     if(filter==='zeroCorners')return wasObserved(p,'corner')===false;
-    return filter==='edited'?!!state.custom[p]:filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
+    return filter==='edited'?hasWordOverride(p):filter==='new'?s.seen===0:filter==='strong'?s.streak>=3:true;}
   function renderMatrixContent(){
     const box=$('#matrixContent');if(!box)return;
     if(matrixMode==='row'&&matrixHasReadingSet()){
@@ -474,7 +475,7 @@
     } else {
       const list=PAIRS.filter(isVisible);
       if(list.length===0){box.innerHTML='<div class="empty">No matching pairs. Try a different search or filter.</div>';return;}
-      box.innerHTML=`<div class="info-line">Showing ${list.length} of 576 pairs · Scroll the table sideways to explore</div><div class="table-scroll"><table class="matrix-table"><thead><tr><th></th>${[...ABC].map(ch=>`<th scope="col">${ch}</th>`).join('')}</tr></thead><tbody>${[...ABC].map(a=>`<tr><td>${a}</td>${[...ABC].map(b=>{let p=a+b;return `<td>${isVisible(p)?`<button data-edit="${p}" class="${state.custom[p]?'changed':''} ${zeroKind(p)==='both'?'zero-both':''}" title="${esc(assoc(p))} · ${zeroBadge(p)||'observed in both simulations'}"><strong>${p}</strong><small>${esc(assoc(p))}</small>${zeroBadge(p)?`<small class="zero-label">${zeroBadge(p)}</small>`:''}</button>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
+      box.innerHTML=`<div class="info-line">Showing ${list.length} of 576 pairs · Scroll the table sideways to explore</div><div class="table-scroll"><table class="matrix-table"><thead><tr><th></th>${[...ABC].map(ch=>`<th scope="col">${ch}</th>`).join('')}</tr></thead><tbody>${[...ABC].map(a=>`<tr><td>${a}</td>${[...ABC].map(b=>{let p=a+b;return `<td>${isVisible(p)?`<button data-edit="${p}" class="${hasWordOverride(p)?'changed':''} ${zeroKind(p)==='both'?'zero-both':''}" title="${esc(assoc(p))} · ${zeroBadge(p)||'observed in both simulations'}"><strong>${p}</strong><small>${esc(assoc(p))}</small>${zeroBadge(p)?`<small class="zero-label">${zeroBadge(p)}</small>`:''}</button>`:''}</td>`;}).join('')}</tr>`).join('')}</tbody></table></div>`;
     }
     box.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openEditor(b.dataset.edit)));
   }
@@ -483,7 +484,7 @@
   $('#closeDialog').addEventListener('click',closeEditor);
   $('#editDialog').addEventListener('click',e=>{if(e.target===$('#editDialog'))closeEditor();});
   $('#editDialog').addEventListener('close',()=>{editing=null;});
-  $('#editForm').addEventListener('submit',e=>{e.preventDefault();if(!editing)return;let p=editing,img=$('#imageInput').value.trim(),description=$('#noteInput').value.trim();if(!img){$('#imageInput').focus();return;}if(img===sheetBase(p)&&!description)delete state.custom[p];else state.custom[p]={image:img,note:description,base:state.custom[p]?.base||sheetBase(p)};save();closeEditor();render();toast(`${p} association saved`);});
+  $('#editForm').addEventListener('submit',e=>{e.preventDefault();if(!editing)return;let p=editing,img=$('#imageInput').value.trim(),description=$('#noteInput').value.trim();if(!img){$('#imageInput').focus();return;}if(img===sheetBase(p)){if(description)state.custom[p]={image:'',note:description};else delete state.custom[p];}else state.custom[p]={image:img,note:description,base:state.custom[p]?.base||sheetBase(p)};save();closeEditor();render();toast(`${p} association saved`);});
   $('#restoreBtn').addEventListener('click',()=>{if(!editing)return;let p=editing;delete state.custom[p];save();closeEditor();render();toast(`${p} restored to ${validSheetSnapshot(state.sheet)?'Sheet':'starter'} association`);});
 
   function weightedCard(){
