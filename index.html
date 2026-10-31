@@ -411,7 +411,7 @@
   document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>setTab(el.dataset.tab)));
   function render(){updateStats();if(tab==='matrix')renderMatrix();else if(tab==='cards')renderCards();else if(tab==='sequence')renderSequence();else renderProgress();}
   function pairCard(p){let s=stat(p),kind=zeroKind(p);
-    return `<button class="paircard ${hasWordOverride(p)?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m traced scrambles':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${state.custom[p]?'<span class="tag purple" title="Customized">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
+    return `<button class="paircard ${hasWordOverride(p)?'edited':''} ${kind==='both'?'zero-both':''}" data-edit="${p}" title="Edit ${p}: ${esc(assoc(p))}${kind?' · '+zeroBadge(p)+' in 1m traced scrambles':''}"><span class="pcode">${p}</span><span class="pname">${esc(assoc(p))}</span>${kind?`<span class="zero-label">${zeroBadge(p)}</span>`:''}${hasWordOverride(p)?'<span class="tag purple" title="Customized word">✎</span>':s.streak>=3?'<span class="tag" title="Strong recall">✓</span>':''}</button>`;
   }
   // Matrix reading sets preserve frequency ranking instead of splitting cards by first letter.
   const matrixHasReadingSet=()=>filter==='frequent'||SIM_MODES.includes(filter);
