@@ -61,6 +61,19 @@ function create(ctx){
       return s.seen>0&&(s.due<=now||s.streak<3);
     }).sort((a,b)=>(ctx.stat(a).due||0)-(ctx.stat(b).due||0)||rankIndex.get(a)-rankIndex.get(b));
   };
+  // Keep review selection priority, but test in a different order from preview.
+  // Shuffle only when recall begins, so preview remains consistent while studying.
+  function shufflePairs(pairs){
+    const shuffled=pairs.slice();
+    for(let i=shuffled.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+    }
+    // Avoid retaining the exact preview order by chance when there are 2+ pairs.
+    if(shuffled.length>1&&shuffled.every((pair,i)=>pair===pairs[i]))
+      [shuffled[0],shuffled[1]]=[shuffled[1],shuffled[0]];
+    return shuffled;
+  }
   const current=s=>s.phase==='retry'?s.retry[s.retryIndex]:s.pairs[s.index];
   const commit=()=>{ctx.save();ctx.renderCards();};
   function start(kind){
@@ -80,6 +93,8 @@ function create(ctx){
   }
   function begin(){
     const s=path().session;if(!s||s.phase!=='preview')return;
+    // Persist the shuffled order so pause, reload, and cross-device sync agree.
+    if(s.kind==='review')s.pairs=shufflePairs(s.pairs);
     s.phase='active';revealed=false;commit();
   }
   function pause(){
@@ -103,7 +118,10 @@ function create(ctx){
       if(rating!=='good')s.retry.push(pair);
       s.index++;
       if(s.kind==='new')p.position=Math.min(576,p.position+1);
-      if(s.index>=s.pairs.length)s.phase=s.retry.length?'retry':'complete';
+      if(s.index>=s.pairs.length){
+        if(s.kind==='review'&&s.retry.length>1)s.retry=shufflePairs(s.retry);
+        s.phase=s.retry.length?'retry':'complete';
+      }
     }else{
       s.final[pair]=rating;s.retryIndex++;
       if(s.first[pair]!=='good'){
@@ -156,6 +174,7 @@ function create(ctx){
       output+='<div class="session-panel"><h4>Paused and saved</h4><p>'+s.index+' of '+s.pairs.length+' first-pass pairs completed. Resume this session whenever you like.</p></div><div class="controls"><button class="btn primary" id="pathResume">Resume session</button></div>';
     }else if(s.phase==='preview'){
       output+='<div class="session-panel"><h4>'+ (s.kind==='new'?'Study these '+s.pairs.length+' associations':'Review these '+s.pairs.length+' associations')+'</h4><p>Look over each image. Tap one to edit it, then begin recall without hints.</p></div>'
+        +(s.kind==='review'?'<p class="subhint" style="text-align:left;margin:8px 0 12px">Recall order is shuffled after this preview, including any second-look pairs.</p>':'')
         +'<div class="path-preview">'+s.pairs.map(q=>'<button data-path-edit="'+q+'"><strong>'+q+'</strong><span>'+ctx.esc(ctx.assoc(q))+'</span></button>').join('')+'</div>'
         +'<div class="controls"><button class="btn primary" id="pathBegin">Start recall · '+s.pairs.length+'</button><button class="btn" id="pathPause">Pause & save</button></div>';
     }else if(s.phase==='active'||s.phase==='retry'){
