@@ -178,7 +178,16 @@ async function uploadSelected(){
   if(replacing){
     if(!confirm('REPLACE the cloud copy with this device\'s progress? Cloud-only changes will be lost. Export a backup first.'))return;
     api.exportBackup();
-  }else if(!confirm('Upload this device\'s progress as your first cloud copy? Do this on the PHONE with your existing progress.'))return;
+  }else{
+    const current=api.getState();
+    const practiced=Object.keys(current.progress||{}).length;
+    const position=current.learningPath?.position||0;
+    if(!confirm('FIRST UPLOAD: This device has '+practiced+' practiced pairs and Learning Path position '+position+'. Is this the phone/browser with your real progress?'))return;
+  }
+  if(!replacing&&!userData()){
+    alert('No training progress found on this device. Upload from the phone/browser that has your Learning Path progress first.');
+    return;
+  }
   const expected=remote?remote.revision:null;
   notify('pending');
   await pushCloud(expected,true);
