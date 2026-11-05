@@ -6,7 +6,23 @@ try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.corners)
 const $=id=>document.getElementById(id);
 const clean=s=>String(s||'').toUpperCase().replace(/[^A-X]/g,'');
 const escape=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const pair=()=>ABC[Math.random()*24|0]+ABC[Math.random()*24|0];
+// Use the same edge/corner observation data as the Learning Path and Matrix.
+function eventPool(event){
+ const counts=window.BLD_REALISTIC?.[event+'Counts'];
+ if(!Array.isArray(counts)||counts.length!==576||counts.some(n=>!Number.isInteger(n)||n<0))return [];
+ return counts.flatMap((n,i)=>n>0?[ABC[Math.floor(i/24)]+ABC[i%24]]:[]);
+}
+const cornerPool=eventPool('corner'),edgePool=eventPool('edge');
+function samplePairs(pool,count){
+ // Distinct pairs within an event. Every individual pair was observed in the
+ // correct memo type; these practice sequences are not full legal cube traces.
+ const copy=pool.slice();
+ for(let i=0;i<count;i++){
+   const j=i+(Math.random()*(copy.length-i)|0);
+   [copy[i],copy[j]]=[copy[j],copy[i]];
+ }
+ return copy.slice(0,count);
+}
 const range=(a,b)=>a+(Math.random()*(b-a+1)|0);
 const saveRun=()=>{try{localStorage.setItem(KEY,JSON.stringify(current));}catch(e){}};
 function grade(answer,pairs){const actual=clean(answer),expected=pairs.join('');let correct=0;for(let i=0;i<expected.length;i++)correct+=actual[i]===expected[i]?1:0;return {actual,expected,correct,perfect:actual===expected};}
@@ -26,7 +42,8 @@ function render(root,ctx){
  let out='<div class="section-head"><div><h3>CEEC memo trainer</h3><p>Memorize corners then edges; recall edges then corners. Use your own letter-pair dictionary.</p></div><span class="pill">CEEC</span></div>';
  out+='<div class="controls" style="justify-content:flex-start;margin-bottom:18px"><button class="btn" id="ceecOld">Single sequence</button><button class="btn primary" disabled>CEEC trainer</button></div>';
  if(!current||current.phase==='result'){
- out+='<div class="options-row"><label>Corners '+select('ceecCMin',lengths.cmin)+' to '+select('ceecCMax',lengths.cmax)+' pairs</label><label>Edges '+select('ceecEMin',lengths.emin)+' to '+select('ceecEMax',lengths.emax)+' pairs</label></div><div class="controls" style="margin:18px 0"><button class="btn primary" id="ceecStart">Generate memo</button></div>';
+ out+='<div class="options-row"><label>Corners '+select('ceecCMin',lengths.cmin)+' to '+select('ceecCMax',lengths.cmax)+' pairs</label><label>Edges '+select('ceecEMin',lengths.emin)+' to '+select('ceecEMax',lengths.emax)+' pairs</label></div><div class="controls" style="margin:18px 0"><button class="btn primary" id="ceecStart" '+(!cornerPool.length||!edgePool.length?'disabled':'')+'>Generate memo</button></div>';
+ out+='<p class="subhint" style="text-align:left">'+(cornerPool.length&&edgePool.length?'Only memo pairs observed in the simulation: '+cornerPool.length+' corner pairs and '+edgePool.length+' edge pairs. Each pair is valid for its section; the combined sequence is a memory drill, not a full cube trace.':'Simulation frequency data unavailable. CEEC generation is disabled to avoid invalid pair selections.')+'</p>';
  }
  if(current){
   out+='<div class="session-panel" style="text-align:center"><strong style="font-size:29px;font-variant-numeric:tabular-nums" id="ceecTimer">'+liveTime()+'s</strong></div>';
@@ -54,7 +71,8 @@ function render(root,ctx){
   const cmin=+$('ceecCMin').value,cmax=+$('ceecCMax').value,emin=+$('ceecEMin').value,emax=+$('ceecEMax').value;
   if(cmin>cmax||emin>emax){ctx.toast('Minimum cannot exceed maximum');return;}
   ctx.state.settings.ceecLengths={cmin,cmax,emin,emax};ctx.save();
-  current={corners:Array.from({length:range(cmin,cmax)},pair),edges:Array.from({length:range(emin,emax)},pair),phase:'corners',revealed:{},started:Date.now(),answers:{edges:'',corners:''}};
+  if(!cornerPool.length||!edgePool.length){ctx.toast('Simulation data unavailable; cannot generate event-specific pairs');return;}
+  current={corners:samplePairs(cornerPool,range(cmin,cmax)),edges:samplePairs(edgePool,range(emin,emax)),phase:'corners',revealed:{},started:Date.now(),answers:{edges:'',corners:''}};
   saveRun();render(root,ctx);
  });
  root.querySelectorAll('[data-ceec-pair]').forEach(b=>b.addEventListener('click',()=>{current.revealed=current.revealed||{};current.revealed[b.dataset.ceecPair]=!current.revealed[b.dataset.ceecPair];saveRun();render(root,ctx);}));
