@@ -158,6 +158,44 @@
     .progress-meter { display:flex; justify-content:space-between; font-size:12px; color:var(--soft); }
     .trouble-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
     .trouble-list button { border-radius:8px; border:1px solid var(--line); background:#232943; color:var(--soft); padding:8px 12px; font-weight:800; font-size:12px; }
+
+    .ceec-dashboard { margin-top:20px; }
+    .ceec-dash-head { display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:16px; }
+    .ceec-dash-head h4 { font-size:19px;margin:0; }
+    .ceec-dash-head p { margin:3px 0 0; }
+    .ceec-range { display:flex;gap:5px;flex-wrap:wrap; }
+    .ceec-range .btn { min-width:0;padding:8px 10px; }
+    .ceec-metrics { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }
+    .ceec-metric { background:#202a45;border:1px solid #354365;border-radius:13px;padding:15px;min-width:0; }
+    .ceec-metric span { display:block;color:var(--soft);font-size:11px;font-weight:700; }
+    .ceec-metric strong { display:block;margin-top:6px;font-size:clamp(20px,2.6vw,29px);letter-spacing:-.6px;font-variant-numeric:tabular-nums; }
+    .ceec-substats { display:flex;flex-wrap:wrap;gap:9px 17px;margin:14px 0 19px;font-size:12px;color:var(--muted); }
+    .ceec-substats strong { color:var(--text); }
+    .ceec-charts { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }
+    .ceec-chart { background:#11192e;border:1px solid var(--line);border-radius:14px;padding:14px;min-width:0; }
+    .ceec-chart h5,.ceec-attempts h5 { font-size:14px;margin:0 0 6px; }
+    .ceec-chart p { font-size:11px;color:var(--muted);margin:0 0 6px; }
+    .ceec-chart svg { display:block;width:100%;height:auto;overflow:visible; }
+    .ceec-legend { display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--soft);margin-bottom:4px; }
+    .ceec-legend span { display:inline-flex;align-items:center;gap:5px; }
+    .ceec-legend i { display:block;width:10px;height:10px;border-radius:50%;background:var(--accent2); }
+    .ceec-legend .edges { background:var(--green); }
+    .ceec-legend .corners { background:var(--amber); }
+    .ceec-note { font-size:11px!important;color:var(--muted)!important;line-height:1.5; }
+    .ceec-trouble { margin-top:17px;padding:13px 15px;background:#202a42;border:1px solid var(--line);border-radius:12px; }
+    .ceec-trouble>strong { font-size:13px; }
+    .ceec-trouble>div { display:flex;flex-wrap:wrap;gap:7px;margin-top:9px; }
+    .ceec-trouble>div span { background:#2b3552;border:1px solid #394462;border-radius:8px;padding:6px 9px;font-size:12px;font-weight:750; }
+    .ceec-trouble small { font-weight:600;color:var(--amber); }
+    .ceec-trouble p { font-size:11px!important;margin:10px 0 0!important;color:var(--muted)!important; }
+    .ceec-attempts { margin-top:20px; }
+    .ceec-history-list { max-height:340px;overflow-y:auto;display:grid;gap:5px;margin:12px 0; }
+    .ceec-history-row { width:100%;display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#212b44;color:var(--text);font-size:12px; }
+    .ceec-history-row:hover,.ceec-history-row:focus-visible { border-color:var(--accent);background:#2a3450; }
+    .ceec-history-score { font-weight:750;font-variant-numeric:tabular-nums; }
+    .ceec-history-meta { color:var(--soft);font-variant-numeric:tabular-nums; }
+    @media(max-width:760px){ .ceec-charts { grid-template-columns:1fr; } .ceec-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .ceec-history-row { grid-template-columns:1fr 1fr; } .ceec-history-meta { grid-column:1/-1; } }
+
     .cloud-sync-strip { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 15px; margin:0 0 15px; border:1px solid var(--line); border-radius:13px; background:#151c2e; }
     .cloud-sync-strip strong { display:block; font-size:12px; color:var(--text); }
     .cloud-sync-strip small { display:block; max-width:600px; color:var(--muted); font-size:11px; margin-top:3px; line-height:1.5; }
