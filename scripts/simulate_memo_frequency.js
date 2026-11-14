@@ -1,3 +1,4 @@
+(function(){
 'use strict';
 // Full 3BLD Speffz letter-pair simulation. Run with Node:
 // node scripts/simulate_memo_frequency.js 1000000 20261024
@@ -60,7 +61,7 @@ function placePieces(type,perm,ori){
  }
  return stickers;
 }
-function trace(type,state){
+function trace(type,state,traceOrientation=true){
  const {pieceOf,pieces,buffer}=type,bp=pieceOf[buffer];
  const seen=new Uint8Array(pieces.length),memo=[];seen[bp]=1;
  const solved=p=>pieces[p].every(sticker=>state[sticker]===sticker);
@@ -74,6 +75,7 @@ function trace(type,state){
  for(let code=0;code<24;code++){
    const startPiece=pieceOf[code];
    if(seen[startPiece]||solved(startPiece))continue;
+   if(!traceOrientation&&pieceOf[state[code]]===startPiece){seen[startPiece]=1;continue;}
    seen[startPiece]=1;memo.push(code);from=code;
    while(true){
      if(++step>100)throw Error("Cycle break infinite");
@@ -127,7 +129,33 @@ function simulate(samples=1000000,seed=20261024){
    edgeTotal,cornerTotal,edgeOdd,cornerOdd,edgeLetters,cornerLetters,parityErrors,
    edgeCounts,cornerCounts,edgeSeenHex:seenHex(edgeCounts),cornerSeenHex:seenHex(cornerCounts),perEventLimit:576};
 }
-if(typeof module!=="undefined")module.exports={simulate,test,edges,corners,trace,placePieces,randomState,rng,parity};
+function sampleSequence(event,length,eligible=null,random=Math.random){
+ const type=event==='edge'?edges:corners;
+ // Eight edge pairs require an unusually long permutation trace.
+ const attempts=length===8&&!eligible?80000:5000;
+ for(let attempt=0;attempt<attempts;attempt++){
+   const {ep,cp,eo,co}=randomState(random);
+   const state=type===edges?placePieces(type,ep,eo):placePieces(type,cp,co);
+   // In-place flips and twists are memoed separately in M2/OP practice.
+   const memo=trace(type,state,false);
+   if(memo.length<length*2)continue;
+   const pairs=[];
+   for(let i=0;i+1<memo.length;i+=2)pairs.push(ABC[memo[i]]+ABC[memo[i+1]]);
+   if(!eligible){
+     const offset=Math.floor(random()*(pairs.length-length+1));
+     return pairs.slice(offset,offset+length);
+   }
+   const blocks=[];
+   for(let offset=0;offset+length<=pairs.length;offset++){
+     const block=pairs.slice(offset,offset+length);
+     if(block.every(pair=>eligible.has(pair)))blocks.push(block);
+   }
+   if(blocks.length)return blocks[Math.floor(random()*blocks.length)];
+ }
+ return null;
+}
+if(typeof window!=="undefined")window.BLDMemoTrace={sampleSequence};
+if(typeof module!=="undefined")module.exports={simulate,test,edges,corners,trace,placePieces,randomState,rng,parity,sampleSequence};
 if(typeof require!=="undefined"&&typeof module!=="undefined"&&require.main===module){
  const fs=require("fs"),path=require("path");
  const data=simulate(Number(process.argv[2]||1000000),Number(process.argv[3]||20261024));
@@ -136,3 +164,4 @@ if(typeof require!=="undefined"&&typeof module!=="undefined"&&require.main===mod
  console.log(JSON.stringify({samples:data.samples,edgeTotal:data.edgeTotal,cornerTotal:data.cornerTotal,
    edgeObserved:data.edgeCounts.filter(Boolean).length,cornerObserved:data.cornerCounts.filter(Boolean).length,parityErrors:data.parityErrors},null,2));
 }
+})();
