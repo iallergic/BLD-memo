@@ -1,7 +1,8 @@
 (function(){
 'use strict';
 const KEY='bld-ceec-active-v1',ABC='ABCDEFGHIJKLMNOPQRSTUVWX';
-let current=null;
+let current=null,clock;
+const stopClock=()=>clearInterval(clock);
 try{const x=JSON.parse(localStorage.getItem(KEY));if(x&&Array.isArray(x.corners)&&Array.isArray(x.edges)&&['corners','edges','recallEdges','recallCorners','result'].includes(x.phase))current=x;}catch(e){}
 const $=id=>document.getElementById(id);
 const clean=s=>String(s||'').toUpperCase().replace(/[^A-X]/g,'');
@@ -117,7 +118,9 @@ function historyDashboard(history){
 }
 
 function render(root,ctx){
- if(window.ceecClock)clearInterval(window.ceecClock);
+ stopClock();
+ const timed=ctx.state.settings.ceecTimed!==false;
+ const showCornerWords=ctx.state.settings.ceecShowCornerWords===true;
  const liveTime=()=>current?.started?((current.phase==='result'?current.elapsed:Date.now()-current.started)/1000).toFixed(2):'0.00';
  const lengths=ctx.state.settings.ceecLengths||{cmin:2,cmax:3,emin:2,emax:3};
  const history=Array.isArray(ctx.state.ceecHistory)?ctx.state.ceecHistory:[];
@@ -125,22 +128,23 @@ function render(root,ctx){
  let out='<div class="section-head"><div><h3>CEEC memo trainer</h3><p>Memorize corners then edges; recall edges then corners. Use your own letter-pair dictionary.</p></div><span class="pill">CEEC</span></div>';
  out+='<div class="controls" style="justify-content:flex-start;margin-bottom:18px"><button class="btn" id="ceecOld">Single sequence</button><button class="btn primary" disabled>CEEC trainer</button></div>';
  if(!current||current.phase==='result'){
- out+='<div class="options-row"><label>Corners '+select('ceecCMin',lengths.cmin)+' to '+select('ceecCMax',lengths.cmax)+' pairs</label><label>Edges '+select('ceecEMin',lengths.emin)+' to '+select('ceecEMax',lengths.emax)+' pairs</label></div><div class="controls" style="margin:18px 0"><button class="btn primary" id="ceecStart" '+(!cornerPool.length||!edgePool.length?'disabled':'')+'>Generate memo</button></div>';
+ out+='<div class="options-row"><label>Corners '+select('ceecCMin',lengths.cmin)+' to '+select('ceecCMax',lengths.cmax)+' pairs</label><label>Edges '+select('ceecEMin',lengths.emin)+' to '+select('ceecEMax',lengths.emax)+' pairs</label></div><div class="options-row"><label><input type="checkbox" id="ceecShowCornerWords" '+(showCornerWords?'checked':'')+'> Show corner words</label><label><input type="checkbox" id="ceecTimed" '+(timed?'checked':'')+'> Time next run</label></div><div class="controls" style="margin:18px 0"><button class="btn primary" id="ceecStart" '+(!cornerPool.length||!edgePool.length?'disabled':'')+'>Generate memo</button></div>';
  out+='<p class="subhint" style="text-align:left">'+(cornerPool.length&&edgePool.length?'Only memo pairs observed in the simulation: '+cornerPool.length+' corner pairs and '+edgePool.length+' edge pairs. Each pair is valid for its section; the combined sequence is a memory drill, not a full cube trace.':'Simulation frequency data unavailable. CEEC generation is disabled to avoid invalid pair selections.')+'</p>';
  }
  if(current){
-  out+='<div class="session-panel" style="text-align:center"><strong style="font-size:29px;font-variant-numeric:tabular-nums" id="ceecTimer">'+liveTime()+'s</strong></div>';
+  if(current.started!=null)out+='<div class="session-panel" style="text-align:center"><strong style="font-size:29px;font-variant-numeric:tabular-nums" id="ceecTimer">'+liveTime()+'s</strong></div>';
   if(current.phase==='corners'||current.phase==='edges'){
    const isCorners=current.phase==='corners',items=isCorners?current.corners:current.edges;
    out+='<div class="callout">Memorize <strong>'+(isCorners?'corners':'edges')+'</strong> only. The other sequence is hidden.</div>';
-   out+='<div class="sequence">'+items.map(p=>'<div class="seqpair" style="min-width:100px"><strong>'+p+'</strong><span>'+(current.revealed?.[p]?escape(ctx.word(p)):'Word hidden')+'</span><button class="btn sm" data-ceec-pair="'+p+'">Reveal</button><button class="btn sm" data-ceec-edit="'+p+'">Edit</button></div>').join('')+'</div>';
+   const wordsVisible=p=>current.revealed?.[p]??(isCorners&&showCornerWords);
+   out+='<div class="sequence">'+items.map(p=>'<div class="seqpair" style="min-width:100px"><strong>'+p+'</strong><span>'+(wordsVisible(p)?escape(ctx.word(p)):'Word hidden')+'</span><button class="btn sm" data-ceec-pair="'+p+'">'+(wordsVisible(p)?'Hide':'Reveal')+'</button><button class="btn sm" data-ceec-edit="'+p+'">Edit</button></div>').join('')+'</div>';
    out+='<div class="controls"><button class="btn primary" id="ceecNext">'+(isCorners?'Hide corners · memorize edges':'Hide edges · recall edges')+'</button></div>';
   }else if(current.phase==='recallEdges'||current.phase==='recallCorners'){
    const isEdges=current.phase==='recallEdges',field=isEdges?'edges':'corners';
    out+='<div class="callout">Recall <strong>'+field+'</strong> now. The original memo stays hidden.</div><label class="fieldlabel" for="ceecAnswer">'+(isEdges?'Edges':'Corners')+'</label><textarea id="ceecAnswer" rows="2" spellcheck="false" autocapitalize="characters" placeholder="Type the letters in order"></textarea><div class="controls" style="margin-top:15px"><button class="btn primary" id="ceecNextRecall">'+(isEdges?'Save edges · recall corners':'Finish & check')+'</button></div>';
   }else{
    const e=grade(current.answers.edges,current.edges),c=grade(current.answers.corners,current.corners);
-   out+='<div class="session-panel"><h4>'+(e.perfect&&c.perfect?'Perfect recall!':'Review your attempt')+'</h4><p>Edges '+e.correct+'/'+e.expected.length+' letters · Corners '+c.correct+'/'+c.expected.length+' letters · '+(current.elapsed/1000).toFixed(1)+' seconds</p></div>';
+   out+='<div class="session-panel"><h4>'+(e.perfect&&c.perfect?'Perfect recall!':'Review your attempt')+'</h4><p>Edges '+e.correct+'/'+e.expected.length+' letters · Corners '+c.correct+'/'+c.expected.length+' letters</p></div>';
    out+=compare(current.edges,current.answers.edges,'Edges',ctx.word)+compare(current.corners,current.answers.corners,'Corners',ctx.word);
    out+='<div class="controls"><button class="btn" id="ceecRetry">Study same memo</button></div>';
   }
@@ -148,15 +152,18 @@ function render(root,ctx){
  if(history.length)out+=historyDashboard(history);
  root.innerHTML=out;
  $('ceecOld')?.addEventListener('click',ctx.showOriginal);
+ for(const key of ['ceecTimed','ceecShowCornerWords']){
+  $(key)?.addEventListener('change',e=>{ctx.state.settings[key]=e.target.checked;ctx.save();});
+ }
  $('ceecStart')?.addEventListener('click',()=>{
   const cmin=+$('ceecCMin').value,cmax=+$('ceecCMax').value,emin=+$('ceecEMin').value,emax=+$('ceecEMax').value;
   if(cmin>cmax||emin>emax){ctx.toast('Minimum cannot exceed maximum');return;}
   ctx.state.settings.ceecLengths={cmin,cmax,emin,emax};ctx.save();
   if(!cornerPool.length||!edgePool.length){ctx.toast('Simulation data unavailable; cannot generate event-specific pairs');return;}
-  current={corners:samplePairs(cornerPool,range(cmin,cmax)),edges:samplePairs(edgePool,range(emin,emax)),phase:'corners',revealed:{},started:Date.now(),answers:{edges:'',corners:''}};
+  current={corners:samplePairs(cornerPool,range(cmin,cmax)),edges:samplePairs(edgePool,range(emin,emax)),phase:'corners',revealed:{},started:ctx.state.settings.ceecTimed!==false?Date.now():null,answers:{edges:'',corners:''}};
   saveRun();render(root,ctx);
  });
- root.querySelectorAll('[data-ceec-pair]').forEach(b=>b.addEventListener('click',()=>{current.revealed=current.revealed||{};current.revealed[b.dataset.ceecPair]=!current.revealed[b.dataset.ceecPair];saveRun();render(root,ctx);}));
+ root.querySelectorAll('[data-ceec-pair]').forEach(b=>b.addEventListener('click',()=>{current.revealed=current.revealed||{};const p=b.dataset.ceecPair;current.revealed[p]=!(current.revealed[p]??(current.phase==='corners'&&showCornerWords));saveRun();render(root,ctx);}));
  root.querySelectorAll('[data-ceec-edit]').forEach(b=>b.addEventListener('click',()=>ctx.edit(b.dataset.ceecEdit)));
  $('ceecNext')?.addEventListener('click',()=>{current.phase=current.phase==='corners'?'edges':'recallEdges';current.revealed={};saveRun();render(root,ctx);if(current.phase==='recallEdges')$('ceecAnswer')?.focus();});
  if(current?.phase==='recallEdges'||current?.phase==='recallCorners'){
@@ -169,15 +176,15 @@ function render(root,ctx){
   current.answers[field]=$('ceecAnswer').value;
   if(field==='edges'){current.phase='recallCorners';saveRun();render(root,ctx);$('ceecAnswer')?.focus();return;}
   const e=grade(current.answers.edges,current.edges),c=grade(current.answers.corners,current.corners);
-  current.elapsed=Date.now()-current.started;current.phase='result';
+  current.elapsed=current.started==null?null:Math.max(0,Date.now()-current.started);current.phase='result';
   ctx.state.ceecHistory=Array.isArray(ctx.state.ceecHistory)?ctx.state.ceecHistory:[];
   ctx.state.ceecHistory.unshift({at:Date.now(),corners:current.corners.slice(),edges:current.edges.slice(),answers:{...current.answers},perfect:e.perfect&&c.perfect,elapsed:current.elapsed});
   ctx.state.ceecHistory=ctx.state.ceecHistory.slice(0,50);ctx.save();saveRun();render(root,ctx);
  });
- $('ceecRetry')?.addEventListener('click',()=>{current.phase='corners';current.started=Date.now();current.revealed={};current.answers={edges:'',corners:''};saveRun();render(root,ctx);});
- if(current&&current.phase!=='result')window.ceecClock=setInterval(()=>{const timer=$('ceecTimer');if(timer)timer.textContent=liveTime()+'s';},100);
+ $('ceecRetry')?.addEventListener('click',()=>{current.phase='corners';current.started=ctx.state.settings.ceecTimed!==false?Date.now():null;current.elapsed=null;current.revealed={};current.answers={edges:'',corners:''};saveRun();render(root,ctx);});
+ if(current?.started!=null&&current.phase!=='result')clock=setInterval(()=>{const timer=$('ceecTimer');if(timer)timer.textContent=liveTime()+'s';},100);
  root.querySelectorAll('[data-ceec-range]').forEach(b=>b.addEventListener('click',()=>{historyRange=+b.dataset.ceecRange;render(root,ctx);}));
  root.querySelectorAll('[data-ceec-history]').forEach(b=>b.addEventListener('click',()=>{const x=history[+b.dataset.ceecHistory];$('ceecReview').innerHTML=compare(x.edges,x.answers.edges,'Edges',ctx.word)+compare(x.corners,x.answers.corners,'Corners',ctx.word);}));
 }
-window.BLDMemoCEEC={render};
+window.BLDMemoCEEC={render,stopClock};
 })();
